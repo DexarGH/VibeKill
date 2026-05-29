@@ -210,13 +210,33 @@ impl WindowContext {
     }
 
     pub fn ungrab_input(&self) {
-        use x11rb::connection::Connection;
-        use x11rb::protocol::xproto::ConnectionExt;
+        unsafe {
+            if let Ok(lib) = libloading::Library::new("libX11.so.6") {
+                type XOpenDisplayFn =
+                    unsafe extern "C" fn(name: *const std::ffi::c_char) -> *mut std::ffi::c_void;
+                type XUngrabFn =
+                    unsafe extern "C" fn(display: *mut std::ffi::c_void, time: std::ffi::c_ulong) -> std::ffi::c_int;
+                type XSyncFn =
+                    unsafe extern "C" fn(display: *mut std::ffi::c_void, discard: std::ffi::c_int) -> std::ffi::c_int;
 
-        if let Ok((conn, _)) = x11rb::connect(None) {
-            let _ = conn.ungrab_pointer(x11rb::CURRENT_TIME);
-            let _ = conn.ungrab_keyboard(x11rb::CURRENT_TIME);
-            let _ = conn.flush();
+                let open_display = lib.get::<XOpenDisplayFn>(b"XOpenDisplay\0").ok().unwrap();
+                let ungrab_pointer = lib.get::<XUngrabFn>(b"XUngrabPointer\0").ok().unwrap();
+                let ungrab_keyboard = lib.get::<XUngrabFn>(b"XUngrabKeyboard\0").ok().unwrap();
+                let x_sync = lib.get::<XSyncFn>(b"XSync\0").ok().unwrap();
+
+                let display = open_display(std::ptr::null());
+                if !display.is_null() {
+                    for _ in 0..10 {
+                        ungrab_pointer(display, 0);
+                        ungrab_keyboard(display, 0);
+                        x_sync(display, 0);
+                    }
+                    let _ = lib.get::<unsafe extern "C" fn(*mut std::ffi::c_void) -> std::ffi::c_int>(
+                        b"XCloseDisplay\0",
+                    )
+                    .map(|close| close(display));
+                }
+            }
         }
     }
 }

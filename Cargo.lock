@@ -291,6 +291,7 @@ dependencies = [
  "glam",
  "glutin",
  "glutin-winit",
+ "libloading",
  "nix",
  "rand",
  "rand_distr",
@@ -301,7 +302,6 @@ dependencies = [
  "utils",
  "uuid",
  "winit",
- "x11rb",
 ]
 
 [[package]]
