@@ -1,10 +1,4 @@
-# deadlocked
-
-[![Matrix Invite](https://img.shields.io/matrix/open-source-cs2-hacking%3Amatrix.org?style=for-the-badge&logo=matrix&label=Matrix)](https://matrix.to/#/%23open-source-cs2-hacking:matrix.org)
-
-[![Discord Invite](https://img.shields.io/discord/1333541580249890949?style=for-the-badge&logo=discord&logoColor=white&label=Discord)](https://discord.gg/eXjG4Ar9Sx)
-
-[![Casual Maintenance Intended](https://casuallymaintained.tech/badge.svg)](https://casuallymaintained.tech/)
+# VibeKill(deadlocked fork)
 
 simple cs2 aimbot and esp, for linux only.
 
@@ -54,6 +48,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 - Player tags (helmet, defuser, bomb)
 - Dropped weapons
 - Bomb timer
+- Glow
 
 ### Triggerbot
 
@@ -68,7 +63,7 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 
 ### Standalone RCS
 
-- Smoothing
+- Y/X Strenge
 
 ### Per-Weapon Overrides
 
@@ -80,6 +75,8 @@ Running NixOS or Fedora Atomic? See [OS-Specific Setup](os-setup.md).
 
 - Sniper crosshair
 - Bomb timer
+- KeyBind list
+- Spectator list
 
 ### Unsafe
 
