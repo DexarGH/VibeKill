@@ -52,9 +52,6 @@ impl App {
                     if ui.button("Selfdestruct").clicked() {
                         self.selfdestruct();
                     }
-                    if ui.button("Close").clicked() {
-                        self.show_menu = false;
-                    }
                 });
             });
 
