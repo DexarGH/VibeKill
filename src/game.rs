@@ -20,6 +20,7 @@ pub struct GameManager {
     config: Config,
     mouse: Mouse,
     cs2: CS2,
+    insert_was_down: bool,
 }
 
 impl GameManager {
@@ -39,6 +40,7 @@ impl GameManager {
             config: Config::default(),
             mouse,
             cs2: CS2::new(),
+            insert_was_down: false,
         }
     }
 
@@ -73,9 +75,11 @@ impl GameManager {
                     previous_status = GameStatus::Working;
                 }
                 self.cs2.run(&self.config, &mut self.mouse);
-                if self.cs2.key_just_pressed(crate::cs2::key_codes::KeyCode::Insert) {
+                let insert_down = self.cs2.is_key_pressed(crate::cs2::key_codes::KeyCode::Insert);
+                if insert_down && !self.insert_was_down {
                     self.send_message(UiMessage::ToggleMenu);
                 }
+                self.insert_was_down = insert_down;
                 let mut data = self.data.lock();
                 self.cs2.data(&self.config, &mut data);
             } else {

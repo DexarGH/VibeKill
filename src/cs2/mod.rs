@@ -79,8 +79,8 @@ impl CS2 {
         self.is_valid = true;
     }
 
-    pub fn key_just_pressed(&self, key: key_codes::KeyCode) -> bool {
-        self.input.key_just_pressed(key)
+    pub fn is_key_pressed(&self, key: key_codes::KeyCode) -> bool {
+        self.input.is_key_pressed(key)
     }
 
     pub fn run(&mut self, config: &Config, mouse: &mut Mouse) {

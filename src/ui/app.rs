@@ -114,11 +114,22 @@ impl App {
     pub fn selfdestruct(&self) {
         std::process::exit(0);
     }
+
+    fn process_messages(&mut self) {
+        while let Ok(message) = self.channel.try_receive() {
+            match message {
+                UiMessage::Status(status) => self.game_status = status,
+                UiMessage::ToggleMenu => self.show_menu = !self.show_menu,
+            }
+        }
+    }
 }
 
 impl ApplicationHandler for App {
     fn new_events(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, cause: StartCause) {
         if let StartCause::ResumeTimeReached { .. } = cause {
+            self.process_messages();
+
             self.next_frame_time += self.frame_duration();
 
             let now = Instant::now();
@@ -149,12 +160,7 @@ impl ApplicationHandler for App {
         window_id: winit::window::WindowId,
         window_event: WindowEvent,
     ) {
-        while let Ok(message) = self.channel.try_receive() {
-            match message {
-                UiMessage::Status(status) => self.game_status = status,
-                UiMessage::ToggleMenu => self.show_menu = !self.show_menu,
-            }
-        }
+        self.process_messages();
 
         let Some(overlay) = &mut self.overlay else {
             return;
