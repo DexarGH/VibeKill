@@ -395,7 +395,7 @@ impl CS2 {
             return Vec::new();
         }
 
-        let origin = local_player.position(self) + Vec3::new(0.0, 0.0, 64.0);
+        let origin = local_player.eye_position(self);
         let view_angles = local_player.view_angles(self);
         let player_velocity = local_player.velocity(self);
 
@@ -426,7 +426,7 @@ impl CS2 {
 
         let mut vel = forward * speed + player_velocity;
         let mut pos = origin;
-        let ground_z = origin.z - 32.0;
+        let feet_z = local_player.position(self).z;
 
         let mut path = Vec::with_capacity(MAX_STEPS);
         path.push(pos);
@@ -439,28 +439,28 @@ impl CS2 {
             vel.z -= GRAVITY * DT;
             pos += vel * DT;
 
-            if pos.z <= ground_z {
-                path.push(pos);
-                break;
-            }
-
             if let Some(bvh) = bvh
                 && let Some((_t, hit, normal)) = bvh.segment_cast(prev, pos)
             {
-                    path.push(hit);
+                path.push(hit);
 
-                    bounces += 1;
-                    if bounces >= MAX_BOUNCES {
-                        break;
-                    }
-
-                    let vn = vel.dot(normal);
-                    let vt = vel - vn * normal;
-                    vel = vt - vn * restitution * normal;
-
-                    pos = hit + normal * 2.0;
-                    continue;
+                bounces += 1;
+                if bounces >= MAX_BOUNCES {
+                    break;
                 }
+
+                let vn = vel.dot(normal);
+                let vt = vel - vn * normal;
+                vel = vt - vn * restitution * normal;
+
+                pos = hit + normal * 2.0;
+                continue;
+            }
+
+            if pos.z <= feet_z {
+                path.push(pos);
+                break;
+            }
 
             path.push(pos);
         }

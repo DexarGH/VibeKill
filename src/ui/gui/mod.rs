@@ -52,24 +52,13 @@ impl App {
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 let frame = egui::Frame::window(ui.style());
+                let mut title_bar_rect = egui::Rect::NOTHING;
                 frame.show(ui, |ui| {
-                    ui.set_min_size(self.menu_size);
-
-                    let bg_rect = ui.max_rect();
-                    let bg_id = ui.make_persistent_id("bg_drag");
-                    let bg = ui.interact(bg_rect, bg_id, egui::Sense::click_and_drag());
-
-                    if bg.dragged_by(egui::PointerButton::Primary) {
-                        self.menu_pos += bg.drag_delta();
-                    }
-                    if bg.dragged_by(egui::PointerButton::Secondary) {
-                        self.menu_size = (self.menu_size + bg.drag_delta())
-                            .max(egui::Vec2::splat(300.0));
-                    }
-
+                    ui.set_min_size(egui::vec2(750.0, 450.0));
                     egui::Panel::top("menu_bar")
                         .resizable(false)
                         .show_inside(ui, |ui| {
+                            title_bar_rect = ui.min_rect();
                             ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                                 if ui.button("Selfdestruct").clicked() {
                                     self.selfdestruct();
@@ -130,6 +119,20 @@ impl App {
                         self.stacktrace_popup(ui.ctx());
                     }
                 });
+                let (primary_down, delta, interact_pos) = ctx.input(|i| {
+                    (
+                        i.pointer.button_down(egui::PointerButton::Primary),
+                        i.pointer.delta(),
+                        i.pointer.interact_pos(),
+                    )
+                });
+                if primary_down && delta != egui::Vec2::ZERO {
+                    if let Some(pos) = interact_pos {
+                        if title_bar_rect.contains(pos) {
+                            self.menu_pos += delta;
+                        }
+                    }
+                }
             });
     }
 

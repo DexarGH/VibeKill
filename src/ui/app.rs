@@ -5,7 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use egui::Vec2;
 use utils::{channel::Channel, sync::Mutex};
 use winit::{
     application::ApplicationHandler,
@@ -59,7 +58,6 @@ pub struct App {
     pub aimbot_weapon: Weapon,
 
     pub menu_pos: egui::Pos2,
-    pub menu_size: Vec2,
 }
 
 impl App {
@@ -104,7 +102,6 @@ impl App {
             aimbot_weapon: Weapon::Ak47,
 
             menu_pos: egui::pos2(100.0, 100.0),
-            menu_size: Vec2::new(750.0, 450.0),
         };
         ret.send_config();
         ret
@@ -126,7 +123,12 @@ impl App {
         while let Ok(message) = self.channel.try_receive() {
             match message {
                 UiMessage::Status(status) => self.game_status = status,
-                UiMessage::ToggleMenu => self.show_menu = !self.show_menu,
+                UiMessage::ToggleMenu => {
+                    self.show_menu = !self.show_menu;
+                    if let Some(overlay) = &self.overlay {
+                        let _ = overlay.window().set_cursor_hittest(self.show_menu);
+                    }
+                }
             }
         }
     }
@@ -195,6 +197,7 @@ impl ApplicationHandler for App {
                         NamedKey::Insert => {
                             if event.state == ElementState::Pressed && !event.repeat {
                                 self.show_menu = !self.show_menu;
+                                let _ = overlay.window().set_cursor_hittest(self.show_menu);
                             }
                             None
                         }
