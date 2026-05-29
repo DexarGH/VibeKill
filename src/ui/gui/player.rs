@@ -37,6 +37,14 @@ impl App {
                 if color_picker(ui, "Skeleton", &mut self.config.player.skeleton_color) {
                     self.send_config();
                 }
+
+                if color_picker(
+                    ui,
+                    "Offscreen Arrow",
+                    &mut self.config.player.offscreen_arrow_color,
+                ) {
+                    self.send_config();
+                }
             });
         });
     }
@@ -90,6 +98,24 @@ impl App {
                 "Visible Only",
                 "Only show visible players",
                 &mut self.config.player.visible_only,
+            ) {
+                self.send_config();
+            }
+
+            if checkbox(
+                ui,
+                "Offscreen Arrows",
+                &mut self.config.player.offscreen_arrows,
+            ) {
+                self.send_config();
+            }
+
+            if drag(
+                ui,
+                "Arrow Size",
+                DragValue::new(&mut self.config.player.offscreen_arrow_size)
+                    .range(1.0..=10.0)
+                    .speed(0.5),
             ) {
                 self.send_config();
             }

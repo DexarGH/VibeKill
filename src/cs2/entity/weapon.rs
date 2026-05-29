@@ -78,6 +78,7 @@ pub enum Weapon {
 }
 
 impl Weapon {
+    #[allow(unused)]
     pub fn from_handle(handle: i32, cs2: &CS2) -> Option<Self> {
         if handle == 0 {
             return None;
@@ -169,6 +170,57 @@ impl Weapon {
             522 => Knife,
             523 => Knife,
             _ => Unknown,
+        }
+    }
+
+    #[allow(unused)]
+    pub fn weapon_index(&self) -> u16 {
+        use Weapon::*;
+        match self {
+            Deagle => 1,
+            DualBerettas => 2,
+            FiveSeven => 3,
+            Glock => 4,
+            Ak47 => 7,
+            Aug => 8,
+            Awp => 9,
+            Famas => 10,
+            G3SG1 => 11,
+            Galilar => 13,
+            M249 => 14,
+            M4A4 => 16,
+            Mac10 => 17,
+            P90 => 19,
+            Mp5Sd => 23,
+            Ump45 => 24,
+            Xm1014 => 25,
+            Bizon => 26,
+            Mag7 => 27,
+            Negev => 28,
+            Sawedoff => 29,
+            Tec9 => 30,
+            Taser => 31,
+            P2000 => 32,
+            Mp7 => 33,
+            Mp9 => 34,
+            Nova => 35,
+            P250 => 36,
+            Scar20 => 38,
+            Sg556 => 39,
+            Ssg08 => 40,
+            M4A1 => 60,
+            Usp => 61,
+            Cz75A => 63,
+            Revolver => 64,
+            C4 => 49,
+            Flashbang => 43,
+            HeGrenade => 44,
+            Smoke => 45,
+            Molotov => 46,
+            Decoy => 47,
+            Incendiary => 48,
+            Knife => 42,
+            Unknown => 0,
         }
     }
 

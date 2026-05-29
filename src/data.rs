@@ -34,6 +34,7 @@ pub struct Data {
     pub aimbot_active: bool,
     pub triggerbot_active: bool,
     pub esp_active: bool,
+    pub grenade_predict_path: Vec<Vec3>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -43,6 +44,7 @@ pub struct PlayerData {
     pub armor: i32,
     pub position: Vec3,
     pub head: Vec3,
+    pub velocity: Vec3,
     pub name: String,
     pub weapon: Weapon,
     pub ammo: (i32, i32),

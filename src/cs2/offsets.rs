@@ -145,6 +145,9 @@ pub struct WeaponOffsets {
     pub item: u64,              // EconItemView (m_Item)
     pub clip_primary: u64,      // i32 (m_iClip1)
     pub reserve_ammo: u64,      // i32[2] (m_pReserveAmmo)
+    pub accuracy_penalty: u64,           // f32 (m_fAccuracyPenalty)
+    pub accuracy_smoothed: u64,          // f32 (m_fAccuracySmoothedForZoom)
+    pub spread: u64,                     // f32 (m_fSpread)
 }
 
 #[derive(Debug, Default)]
@@ -168,6 +171,18 @@ pub struct EntityIdentityOffsets {
 }
 
 #[derive(Debug, Default)]
+pub struct GlowPropertyOffsets {
+    pub m_glow: u64,               // inline CGlowProperty on C_BaseModelEntity (0x0d58)
+    pub glow_color: u64,           // Vec3/Color (m_fGlowColor)
+    pub glowing: u64,              // bool (m_bGlowing)
+    pub glow_range: u64,           // u32 (m_nGlowRange)
+    pub glow_range_min: u64,       // u32 (m_nGlowRangeMin)
+    pub glow_type: u64,            // i32 (m_iGlowType)
+    pub glow_color_override: u64,  // i32 (m_glowColorOverride)
+    pub glow_backface_mult: u64,   // f32 (m_flGlowBackfaceMult on C_BaseModelEntity)
+}
+
+#[derive(Debug, Default)]
 pub struct Offsets {
     pub library: LibraryOffsets,
     pub interface: InterfaceOffsets,
@@ -175,6 +190,7 @@ pub struct Offsets {
     pub convar: ConvarOffsets,
     pub controller: PlayerControllerOffsets,
     pub pawn: PawnOffsets,
+    pub glow: GlowPropertyOffsets,
     pub game_scene_node: GameSceneNodeOffsets,
     pub model_state: ModelState,
     pub smoke: SmokeOffsets,

@@ -37,6 +37,7 @@ impl App {
         for player in &data.players {
             if data.esp_active {
                 self.draw_player(&painter, player, data);
+                self.draw_offscreen_arrow(&painter, player, data);
             }
         }
 
@@ -44,6 +45,7 @@ impl App {
             for player in &data.friendlies {
                 if data.esp_active {
                     self.draw_player(&painter, player, data);
+                    self.draw_offscreen_arrow(&painter, player, data);
                 }
             }
         }
@@ -84,6 +86,10 @@ impl App {
                 Align2::LEFT_TOP,
                 None,
             );
+        }
+
+        if self.config.hud.grenade_predict {
+            self.draw_grenade_predict(data, &painter);
         }
 
         self.grenade_manager(data, &painter);
@@ -284,6 +290,101 @@ impl App {
                     None,
                 );
             }
+        }
+    }
+
+    fn draw_grenade_predict(&self, data: &Data, painter: &Painter) {
+        let path = &data.grenade_predict_path;
+        if path.len() < 2 {
+            return;
+        }
+
+        let weapon = &data.local_player.weapon;
+        let trail_color = match weapon {
+            Weapon::Flashbang => self.config.hud.flash_trail_color,
+            Weapon::HeGrenade => self.config.hud.he_trail_color,
+            Weapon::Smoke => self.config.hud.smoke_trail_color,
+            Weapon::Decoy => self.config.hud.decoy_trail_color,
+            Weapon::Molotov => self.config.hud.molotov_trail_color,
+            Weapon::Incendiary => self.config.hud.incendiary_trail_color,
+            _ => self.config.hud.text_color,
+        };
+
+        let stroke = Stroke::new(self.config.hud.line_width, trail_color);
+        let stroke_bg = Stroke::new(self.config.hud.line_width * 2.0, Color32::BLACK);
+
+        for window in path.windows(2) {
+            let Some(v1) = world_to_screen(&window[0], data) else {
+                continue;
+            };
+            let Some(v2) = world_to_screen(&window[1], data) else {
+                continue;
+            };
+            painter.line_segment([v1, v2], stroke_bg);
+            painter.line_segment([v1, v2], stroke);
+        }
+
+        if let Some(&land_point) = path.last() {
+            if let Some(screen_pos) = world_to_screen(&land_point, data) {
+                painter.circle_filled(screen_pos, 4.0, trail_color);
+                painter.circle_stroke(screen_pos, 4.0, Stroke::new(2.0, Color32::BLACK));
+            }
+
+            if *weapon == Weapon::HeGrenade {
+                self.draw_he_damage(data, painter, land_point);
+            } else if *weapon == Weapon::Smoke {
+                self.draw_smoke_radius(data, painter, land_point);
+            }
+        }
+    }
+
+    fn draw_he_damage(&self, data: &Data, painter: &Painter, center: Vec3) {
+        const BLAST_RADIUS: f32 = 350.0;
+        const MAX_DAMAGE: f32 = 98.0;
+
+        for player in &data.players {
+            let dist = player.position.distance(center);
+            if dist > BLAST_RADIUS {
+                continue;
+            }
+
+            let raw = MAX_DAMAGE * (1.0 - dist / BLAST_RADIUS);
+            let damage = raw.max(0.0).round() as i32;
+            let after_armor = (damage as f32 * 0.5).round() as i32;
+
+            let Some(screen) = world_to_screen(&player.position, data) else {
+                continue;
+            };
+
+            self.text(
+                painter,
+                format!("{dmg} ({armor})", dmg = damage, armor = after_armor),
+                egui::pos2(screen.x, screen.y - self.config.hud.font_size - 4.0),
+                Align2::CENTER_BOTTOM,
+                Some(self.health_color(damage, 255)),
+            );
+        }
+    }
+
+    fn draw_smoke_radius(&self, data: &Data, painter: &Painter, center: Vec3) {
+        const SMOKE_RADIUS: f32 = 300.0;
+        const SEGMENTS: usize = 48;
+
+        let mut screen_points = Vec::with_capacity(SEGMENTS);
+        for i in 0..SEGMENTS {
+            let angle = (i as f32 / SEGMENTS as f32) * std::f32::consts::TAU;
+            let offset = Vec3::new(angle.cos() * SMOKE_RADIUS, angle.sin() * SMOKE_RADIUS, 0.0);
+            let world_pos = center + offset;
+            if let Some(s) = world_to_screen(&world_pos, data) {
+                screen_points.push(s);
+            }
+        }
+
+        for window in screen_points.windows(2) {
+            painter.line_segment(
+                [window[0], window[1]],
+                Stroke::new(self.config.hud.line_width, self.config.hud.smoke_trail_color),
+            );
         }
     }
 

@@ -218,6 +218,24 @@ impl CS2 {
         offsets.weapon.item = client.get("C_AttributeContainer", "m_Item")?;
         offsets.weapon.clip_primary = client.get("C_BasePlayerWeapon", "m_iClip1")?;
         offsets.weapon.reserve_ammo = client.get("C_BasePlayerWeapon", "m_pReserveAmmo")?;
+        offsets.weapon.accuracy_penalty = client
+            .get("CWeaponCSBase", "m_fAccuracyPenalty")
+            .or_else(|| client.get("C_CSWeaponBase", "m_fAccuracyPenalty"))
+            .or_else(|| client.get("C_BasePlayerWeapon", "m_fAccuracyPenalty"))
+            .unwrap_or(0);
+        offsets.weapon.accuracy_smoothed = client
+            .get("C_CSWeaponBase", "m_fAccuracySmoothedForZoom")
+            .or_else(|| client.get("CWeaponCSBase", "m_fAccuracySmoothedForZoom"))
+            .or_else(|| {
+                utils::info!("using hardcoded offset 0x2668 for m_fAccuracySmoothedForZoom");
+                Some(0x2668)
+            })
+            .unwrap_or(0);
+        offsets.weapon.spread = client
+            .get("CWeaponCSBase", "m_fSpread")
+            .or_else(|| client.get("C_CSWeaponBase", "m_fSpread"))
+            .or_else(|| client.get("C_BasePlayerWeapon", "m_fSpread"))
+            .unwrap_or(0);
 
         offsets.econ_item_view.item_definition_index =
             client.get("C_EconItemView", "m_iItemDefinitionIndex")?;
@@ -230,6 +248,18 @@ impl CS2 {
         offsets.planted_c4.defuse_time_left = client.get("C_PlantedC4", "m_flDefuseCountDown")?;
 
         offsets.entity_identity.size = client.get_class("CEntityIdentity")?.size();
+
+        // Glow property offsets (inline CGlowProperty on C_BaseModelEntity)
+        // All with fallbacks — schema might not have all fields
+        offsets.glow.m_glow = client.get("C_BaseModelEntity", "m_Glow").unwrap_or(0x0d58);
+        offsets.glow.glow_color = client.get("CGlowProperty", "m_fGlowColor").unwrap_or(0x08);
+        offsets.glow.glowing = client.get("CGlowProperty", "m_bGlowing").unwrap_or(0x51);
+        offsets.glow.glow_range = client.get("CGlowProperty", "m_nGlowRange").unwrap_or(0x38);
+        offsets.glow.glow_range_min = client.get("CGlowProperty", "m_nGlowRangeMin").unwrap_or(0x3c);
+        offsets.glow.glow_type = client.get("CGlowProperty", "m_iGlowType").unwrap_or(0x30);
+        offsets.glow.glow_color_override = client.get("CGlowProperty", "m_glowColorOverride").unwrap_or(0x40);
+        // m_flGlowBackfaceMult is on C_BaseModelEntity (not inside CGlowProperty)
+        offsets.glow.glow_backface_mult = client.get("C_BaseModelEntity", "m_flGlowBackfaceMult").unwrap_or(0x0db0);
 
         utils::debug!("offsets: {:?} ({:?})", offsets, Instant::now() - start);
         Some(offsets)

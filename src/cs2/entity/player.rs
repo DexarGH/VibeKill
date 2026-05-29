@@ -189,7 +189,7 @@ impl Player {
         )
     }
 
-    fn weapon_address(&self, cs2: &CS2) -> Option<u64> {
+    pub fn weapon_address(&self, cs2: &CS2) -> Option<u64> {
         let handle = self.weapon_handle(cs2)?;
         if handle == 0 {
             return None;
@@ -509,10 +509,12 @@ impl Player {
         cs2.process.read(self.pawn + cs2.offsets.pawn.velocity)
     }
 
+    pub fn flags(&self, cs2: &CS2) -> i32 {
+        cs2.process.read::<i32>(self.pawn + cs2.offsets.pawn.flags)
+    }
+
     fn is_in_air(&self, cs2: &CS2) -> bool {
-        let flags = cs2.process.read::<i32>(self.pawn + cs2.offsets.pawn.flags);
-        // FL_ONGROUND = (1 << 0)
-        (flags & 1) == 0
+        (self.flags(cs2) & 1) == 0
     }
 
     pub fn is_making_sound(&self, cs2: &CS2) -> Option<SoundType> {

@@ -1,5 +1,23 @@
 use glam::{Vec2, Vec3};
 
+use crate::cs2::entity::weapon::Weapon;
+
+#[allow(unused)]
+pub fn angle_vectors(angles: &Vec2) -> (Vec3, Vec3, Vec3) {
+    let pitch = angles.x.to_radians();
+    let yaw = angles.y.to_radians();
+    let cp = pitch.cos();
+    let sp = pitch.sin();
+    let cy = yaw.cos();
+    let sy = yaw.sin();
+
+    let forward = Vec3::new(cp * cy, cp * sy, -sp);
+    let right = Vec3::new(-sy, cy, 0.0);
+    let up = Vec3::new(sp * cy, sp * sy, cp);
+
+    (forward, right, up)
+}
+
 pub fn angles_from_vector(forward: &Vec3) -> Vec2 {
     let mut yaw;
     let mut pitch;
@@ -133,4 +151,50 @@ pub fn record_acceleration(history: &mut std::collections::VecDeque<Vec2>, value
             history.pop_back();
         }
     }
+}
+
+#[allow(unused)]
+pub fn simulate_grenade_path(
+    origin: Vec3,
+    view_angles: Vec2,
+    player_velocity: Vec3,
+    weapon: &Weapon,
+) -> Vec<Vec3> {
+    const GRAVITY: f32 = 800.0;
+    const DT: f32 = 1.0 / 100.0;
+    const MAX_STEPS: usize = 300;
+
+    let speed = match weapon {
+        Weapon::Molotov | Weapon::Incendiary => 1000.0,
+        _ => 1500.0,
+    };
+
+    let pitch = view_angles.x.to_radians();
+    let yaw = view_angles.y.to_radians();
+    let forward = Vec3::new(
+        pitch.cos() * yaw.cos(),
+        pitch.cos() * yaw.sin(),
+        -pitch.sin(),
+    );
+
+    let mut vel = forward * speed + player_velocity;
+    let mut pos = origin;
+
+    let mut path = Vec::with_capacity(MAX_STEPS);
+    path.push(pos);
+
+    let ground_z = origin.z - 32.0;
+
+    for _ in 0..MAX_STEPS {
+        vel.z -= GRAVITY * DT;
+        pos += vel * DT;
+
+        path.push(pos);
+
+        if pos.z <= ground_z {
+            break;
+        }
+    }
+
+    path
 }

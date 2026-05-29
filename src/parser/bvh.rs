@@ -366,6 +366,66 @@ impl Bvh {
         let distance_sq = (sphere_center - closest_point).length_squared();
         distance_sq <= sphere_radius * sphere_radius
     }
+
+    pub fn segment_cast(&self, start: Vec3, end: Vec3) -> Option<(f32, Vec3, Vec3)> {
+        let dir = end - start;
+        let distance = dir.length();
+        if distance < 0.0001 {
+            return None;
+        }
+        let dir_norm = dir / distance;
+        let inv_dir = 1.0 / dir_norm;
+
+        if let Some(root) = self.root {
+            let mut best_t = distance;
+            let mut best_idx = None;
+            self.segment_cast_node(root, start, dir_norm, inv_dir, &mut best_t, &mut best_idx);
+
+            if let Some(idx) = best_idx {
+                let tri = &self.triangles[idx];
+                let normal = (tri.v1 - tri.v0).cross(tri.v2 - tri.v0).normalize();
+                let hit = start + dir_norm * best_t;
+                if normal.dot(dir_norm) > 0.0 {
+                    return Some((best_t, hit, -normal));
+                }
+                return Some((best_t, hit, normal));
+            }
+        }
+        None
+    }
+
+    fn segment_cast_node(
+        &self,
+        node_idx: usize,
+        origin: Vec3,
+        direction: Vec3,
+        inv_dir: Vec3,
+        best_t: &mut f32,
+        best_idx: &mut Option<usize>,
+    ) {
+        let node = &self.nodes[node_idx];
+
+        if !node.aabb().ray_intersect(origin, inv_dir, *best_t) {
+            return;
+        }
+
+        match node {
+            BvhNode::Leaf { primitives, .. } => {
+                for &idx in primitives {
+                    if let Some((t, _, _)) = self.triangles[idx].ray_intersect(origin, direction)
+                        && t >= 0.0 && t <= *best_t
+                    {
+                        *best_t = t;
+                        *best_idx = Some(idx);
+                    }
+                }
+            }
+            BvhNode::Branch { left, right, .. } => {
+                self.segment_cast_node(*left, origin, direction, inv_dir, best_t, best_idx);
+                self.segment_cast_node(*right, origin, direction, inv_dir, best_t, best_idx);
+            }
+        }
+    }
 }
 
 impl BvhNode {

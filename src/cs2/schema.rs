@@ -33,8 +33,53 @@ impl Schema {
         class.get(field)
     }
 
+    #[allow(unused)]
+    pub fn get_any_class(&self, library: &str, field: &str) -> Option<(String, u64)> {
+        let scope = self.scopes.get(library)?;
+        for (class_name, class) in &scope.classes {
+            if let Some(offset) = class.get(field) {
+                return Some((class_name.clone(), offset));
+            }
+        }
+        None
+    }
+
     pub fn get_library(&self, library: &str) -> Option<&ModuleScope> {
         self.scopes.get(library)
+    }
+
+    pub fn dump_weapon_classes(&self, library: &str) {
+        let Some(scope) = self.scopes.get(library) else {
+            println!("[dump] library '{}' not found", library);
+            return;
+        };
+        for (name, class) in &scope.classes {
+            if name.contains("Weapon") || name.contains("weapon") {
+                println!("[dump] class: {}", name);
+                println!("[dump]   size: {}", class.size);
+                println!("[dump]   fields ({}):", class.fields.len());
+                let mut fields: Vec<(&String, &u64)> = class.fields.iter().collect();
+                fields.sort_by_key(|&(_, &v)| v);
+                for (field, offset) in &fields {
+                    println!("[dump]     0x{:04x} {}", offset, field);
+                }
+                println!();
+            }
+        }
+    }
+
+    pub fn dump_all_field_names(&self, library: &str, term: &str) {
+        let Some(scope) = self.scopes.get(library) else {
+            println!("[dump] library '{}' not found", library);
+            return;
+        };
+        for (name, class) in &scope.classes {
+            for field in class.fields.keys() {
+                if field.contains(term) {
+                    println!("[dump] {}.{} (0x{:04x})", name, field, class.fields.get(field).unwrap());
+                }
+            }
+        }
     }
 }
 
@@ -92,6 +137,60 @@ impl ModuleScope {
 
     pub fn get_class(&self, class: &str) -> Option<&Class> {
         self.classes.get(class)
+    }
+
+    pub fn dump_class_pointer_fields(&self, class: &str) {
+        let Some(cls) = self.classes.get(class) else {
+            println!("[dump] class '{}' not found", class);
+            return;
+        };
+        for (f, &o) in &cls.fields {
+            if f.starts_with("m_p") || f.starts_with("m_h") || f.starts_with("m_bVData") {
+                println!("[dump]   {}.{} (0x{:04x})", class, f, o);
+            }
+        }
+    }
+
+    pub fn dump_class_names(&self, term: &str) {
+        for name in self.classes.keys() {
+            if name.contains(term) {
+                println!("[dump]   class: {}", name);
+            }
+        }
+    }
+
+    pub fn dump_all_fields_with_condition(&self, field_term: &str, pointer_only: bool) {
+        for (cname, cls) in &self.classes {
+            for (fname, &offset) in &cls.fields {
+                if fname.contains(field_term) {
+                    if !pointer_only || fname.starts_with("m_p") || fname.starts_with("m_h") {
+                        println!("[dump]   {}.{} (0x{:04x})", cname, fname, offset);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn dump_all_classes_with_field(&self, term: &str) {
+        for (name, class) in &self.classes {
+            for fname in class.fields.keys() {
+                if fname.contains(term) {
+                    println!("[dump]   {}.{}", name, fname);
+                }
+            }
+        }
+    }
+
+    pub fn dump_class_all_fields(&self, class: &str) {
+        let Some(cls) = self.classes.get(class) else {
+            println!("[dump] class '{}' not found", class);
+            return;
+        };
+        let mut fields: Vec<(&String, &u64)> = cls.fields.iter().collect();
+        fields.sort_by_key(|&(_, &v)| v);
+        for &(ref f, &o) in &fields {
+            println!("[dump]   0x{:04x} {}", o, f);
+        }
     }
 }
 

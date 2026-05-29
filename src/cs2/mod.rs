@@ -29,7 +29,7 @@ mod find_offsets;
 mod input;
 pub mod key_codes;
 mod offsets;
-mod schema;
+pub mod schema;
 mod target;
 
 #[derive(Debug)]
@@ -110,6 +110,8 @@ impl CS2 {
         self.no_flash(config);
         self.fov_changer(config);
 
+        self.glow(config);
+
         self.esp_toggle(config);
 
         self.triggerbot(config);
@@ -160,6 +162,7 @@ impl CS2 {
                 armor: player.armor(self),
                 position: player.position(self),
                 head: player.bone_position(self, Bones::Head.u64()),
+                velocity: player.velocity(self),
                 name: player.name(self),
                 weapon: player.weapon(self),
                 ammo: (player.clip_ammo(self), player.reserve_ammo(self)),
@@ -194,6 +197,7 @@ impl CS2 {
             armor: local_player.armor(self),
             position: local_player.position(self),
             head: local_player.bone_position(self, Bones::Head.u64()),
+            velocity: local_player.velocity(self),
             name: local_player.name(self),
             weapon: local_player.weapon(self),
             ammo: (
@@ -265,6 +269,8 @@ impl CS2 {
         } else {
             data.bomb.planted = false;
         }
+
+        data.grenade_predict_path = self.compute_grenade_predict_path(config);
     }
 
     pub fn new() -> Self {
@@ -369,5 +375,92 @@ impl CS2 {
                 self.current_bvh = current_map;
             }
         }
+    }
+
+    fn compute_grenade_predict_path(&self, config: &Config) -> Vec<Vec3> {
+        if !config.hud.grenade_predict {
+            return Vec::new();
+        }
+
+        let Some(local_player) = Player::local_player(self) else {
+            return Vec::new();
+        };
+
+        let weapon = local_player.weapon(self);
+        if !cs2::GRENADES.contains(&weapon) {
+            return Vec::new();
+        }
+
+        let origin = local_player.position(self) + Vec3::new(0.0, 0.0, 64.0);
+        let view_angles = local_player.view_angles(self);
+        let player_velocity = local_player.velocity(self);
+
+        let speed = match weapon {
+            Weapon::Molotov | Weapon::Incendiary => 1000.0,
+            _ => 1500.0,
+        };
+
+        const GRAVITY: f32 = 800.0;
+        const DT: f32 = 1.0 / 100.0;
+        const MAX_STEPS: usize = 300;
+        const MAX_BOUNCES: usize = 4;
+        const RESTITUTION: f32 = 0.45;
+        const MOLLY_RESTITUTION: f32 = 0.3;
+
+        let restitution = match weapon {
+            Weapon::Molotov | Weapon::Incendiary => MOLLY_RESTITUTION,
+            _ => RESTITUTION,
+        };
+
+        let pitch = view_angles.x.to_radians();
+        let yaw = view_angles.y.to_radians();
+        let forward = Vec3::new(
+            pitch.cos() * yaw.cos(),
+            pitch.cos() * yaw.sin(),
+            -pitch.sin(),
+        );
+
+        let mut vel = forward * speed + player_velocity;
+        let mut pos = origin;
+        let ground_z = origin.z - 32.0;
+
+        let mut path = Vec::with_capacity(MAX_STEPS);
+        path.push(pos);
+
+        let bvh = self.bvh.as_ref();
+        let mut bounces = 0;
+
+        for _ in 0..MAX_STEPS {
+            let prev = pos;
+            vel.z -= GRAVITY * DT;
+            pos += vel * DT;
+
+            if pos.z <= ground_z {
+                path.push(pos);
+                break;
+            }
+
+            if let Some(bvh) = bvh
+                && let Some((_t, hit, normal)) = bvh.segment_cast(prev, pos)
+            {
+                    path.push(hit);
+
+                    bounces += 1;
+                    if bounces >= MAX_BOUNCES {
+                        break;
+                    }
+
+                    let vn = vel.dot(normal);
+                    let vt = vel - vn * normal;
+                    vel = vt - vn * restitution * normal;
+
+                    pos = hit + normal * 2.0;
+                    continue;
+                }
+
+            path.push(pos);
+        }
+
+        path
     }
 }

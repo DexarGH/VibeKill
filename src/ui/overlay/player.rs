@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use egui::{Align2, Color32, FontId, Painter, Stroke, pos2};
-use glam::vec3;
+use egui::{Align2, Color32, FontId, Painter, Shape, Stroke, pos2};
+use glam::{Vec2, vec3};
 
 use crate::{
     config::{BoxMode, DrawMode},
@@ -26,6 +26,63 @@ impl App {
 
         self.player_box(painter, player, data, sound_alpha);
         self.skeleton(painter, player, data, sound_alpha);
+    }
+
+    pub fn draw_offscreen_arrow(&self, painter: &Painter, player: &PlayerData, data: &Data) {
+        if !self.config.player.offscreen_arrows {
+            return;
+        }
+
+        let midpoint = (player.position + player.head) / 2.0;
+        let height = player.head.z - player.position.z + 24.0;
+        let half_height = height / 2.0;
+        let top = midpoint + vec3(0.0, 0.0, half_height);
+        let bottom = midpoint - vec3(0.0, 0.0, half_height);
+
+        if world_to_screen(&top, data).is_some() || world_to_screen(&bottom, data).is_some() {
+            return;
+        }
+
+        let to_enemy = player.position - data.local_player.position;
+        let dir_2d = Vec2::new(to_enemy.x, to_enemy.y);
+        if dir_2d.length() < 1.0 {
+            return;
+        }
+
+        let enemy_yaw = dir_2d.y.atan2(dir_2d.x).to_degrees();
+        let view_yaw = data.view_angles.y;
+        let delta = (enemy_yaw - view_yaw + 180.0) % 360.0 - 180.0;
+        let angle_rad = delta.to_radians();
+
+        let center = pos2(data.window_size.x / 2.0, data.window_size.y / 2.0);
+        let edge_gap = data.window_size.x.min(data.window_size.y) * 0.15;
+        let radius = (data.window_size.x.min(data.window_size.y) / 2.0) - edge_gap;
+
+        let px = center.x - angle_rad.sin() * radius;
+        let py = center.y - angle_rad.cos() * radius;
+        let pos = pos2(
+            px.clamp(edge_gap, data.window_size.x - edge_gap),
+            py.clamp(edge_gap, data.window_size.y - edge_gap),
+        );
+
+        let dx = center.x - pos.x;
+        let dy = center.y - pos.y;
+        let len = (dx * dx + dy * dy).sqrt().max(0.001);
+        let ndx = dx / len;
+        let ndy = dy / len;
+
+        let size = self.config.player.offscreen_arrow_size.max(1.0);
+        let color = self.config.player.offscreen_arrow_color;
+
+        let pdx = -ndy;
+        let pdy = ndx;
+
+        let w1 = pos2(pos.x + ndx * size + pdx * size * 0.3, pos.y + ndy * size + pdy * size * 0.3);
+        let w2 = pos2(pos.x + ndx * size - pdx * size * 0.3, pos.y + ndy * size - pdy * size * 0.3);
+
+        let stroke = Stroke::new(2.0, color);
+        painter.add(Shape::line(vec![pos, w1], stroke));
+        painter.add(Shape::line(vec![pos, w2], stroke));
     }
 
     fn player_sound_alpha(

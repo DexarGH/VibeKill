@@ -38,6 +38,10 @@ impl App {
                     self.send_config();
                 }
 
+                if checkbox(ui, "Grenade Predict", &mut self.config.hud.grenade_predict) {
+                    self.send_config();
+                }
+
                 if color_picker(
                     ui,
                     "Smoke Trail Color",

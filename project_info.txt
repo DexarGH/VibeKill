@@ -1,0 +1,285 @@
+========================================
+PROJECT ANALYSIS: deadlocked
+========================================
+
+1. OVERVIEW
+----------------------------------------
+  Name:        deadlocked
+  Description: Linux-only cheat/assist tool for Counter-Strike 2 (CS2)
+   Features:    Aimbot, ESP (wallhack), Triggerbot, Recoil Control (RCS),
+                No-flash, FOV changer, Smoke disable, Grenade lineups,
+                Glow (wallhack glow through walls)
+  Author:      avitran0
+  Repository:  https://github.com/avitran0/deadlocked
+  License:     GPL-3.0
+  Platform:    Linux only (enforced at compile time)
+  Language:    Rust (edition 2024)
+  Version:     1.0.0
+
+  Architecture: Two-threaded (GUI thread + Game thread) communicating
+                via a channel. Shared state via Arc<Mutex<Data>>.
+
+  Thread 1 (GUI): winit event loop, egui UI, OpenGL overlay rendering
+  Thread 2 (Game): GameManager loop at ~100Hz, memory read/write via
+                   process_vm_readv/writev, feature execution
+
+2. DIRECTORY STRUCTURE
+----------------------------------------
+  /home/typoi/deadlocked/
+  ├── .editorconfig
+  ├── .envrc                  # direnv: use flake
+  ├── .github/workflows/rust.yml  # CI: cargo build on push/PR
+  ├── .gitignore
+  ├── build.rs                # Embeds git commit hash
+  ├── Cargo.lock
+  ├── Cargo.toml
+  ├── contributing.md
+  ├── flake.lock
+  ├── flake.nix               # Nix flake dev shell
+  ├── license                 # GPL-3.0
+  ├── nix/shell.nix
+  ├── os-setup.md
+  ├── readme.md
+  ├── resources/
+  │   ├── CS2EquipmentIcons.ttf
+  │   ├── FiraSans.ttf
+  │   └── FiraSansIcons.ttf
+  ├── run.sh                  # git pull + cargo run --release
+  ├── setup.sh                # One-time system setup
+  ├── update.sh               # git pull
+  ├── src/
+  │   ├── main.rs             # Entry point
+  │   ├── config.rs           # Config types, serialization, paths
+  │   ├── constants.rs        # CS2 constants (lib names, offsets)
+  │   ├── data.rs             # Shared Data structs (Data, PlayerData, BombData)
+  │   ├── game.rs             # GameManager: main game loop
+  │   ├── math.rs             # Math utilities (angles, W2S, smoothing)
+  │   ├── message.rs          # Channel messages (GameStatus, Config/Status)
+  │   ├── cs2/
+  │   │   ├── mod.rs          # CS2 struct: core game interaction
+  │   │   ├── bones.rs        # Skeleton bone definitions
+  │   │   ├── bvh.rs          # BVH data reading from CS2 memory (vphys)
+  │   │   ├── find_offsets.rs # Dynamic offset scanning via patterns
+  │   │   ├── input.rs        # Input state tracking (keyboard)
+  │   │   ├── key_codes.rs    # Virtual key codes enum
+   │   │   ├── offsets.rs      # CS2 memory offsets structs (incl. GlowPropertyOffsets)
+  │   │   ├── schema.rs       # CS2 schema system reader
+  │   │   ├── target.rs       # Target selection (FOV/distance)
+  │   │   ├── entity/
+  │   │   │   ├── mod.rs      # Entity enum + caching
+  │   │   │   ├── player.rs   # Player entity fields
+  │   │   │   ├── weapon.rs   # Weapon enum + icon mapping
+  │   │   │   ├── weapon_class.rs # Weapon classification
+  │   │   │   ├── planted_c4.rs    # Planted C4 bomb entity
+  │   │   │   ├── inferno.rs       # Molotov/incendiary fire entity
+  │   │   │   ├── smoke.rs         # Smoke grenade entity
+  │   │   │   └── molotov.rs       # Molotov projectile entity
+  │   │   └── features/
+  │   │       ├── mod.rs      # Feature module declarations
+  │   │       ├── aimbot.rs   # Aimbot implementation
+  │   │       ├── rcs.rs      # Recoil Control System
+  │   │       ├── triggerbot.rs # Triggerbot
+   │   │       ├── glow.rs     # Glow (wallhack glow through walls)
+   │   │       ├── no_flash.rs # No-flash feature
+   │   │       ├── fov_changer.rs # FOV changer
+   │   │       └── esp_toggle.rs  # ESP toggle hotkey
+  │   ├── os/
+  │   │   ├── mod.rs
+  │   │   ├── process.rs      # Linux process memory R/W
+  │   │   ├── mouse.rs        # uinput virtual mouse device
+  │   │   └── crash.rs        # Crash handler
+  │   ├── parser/
+  │   │   ├── mod.rs          # Map BVH reader
+  │   │   └── bvh.rs          # BVH for visibility checks
+  │   └── ui/
+  │       ├── mod.rs
+  │       ├── app.rs          # winit ApplicationHandler
+  │       ├── color.rs        # Color constants
+  │       ├── drag_range.rs   # Range slider widget
+  │       ├── grenades.rs     # Grenade lineups data
+  │       ├── trail.rs        # Grenade trail tracking
+  │       ├── window_context.rs # OpenGL window setup
+  │       ├── gui/
+  │       │   ├── mod.rs      # GUI tab system
+  │       │   ├── aimbot.rs   # Aimbot settings tab
+  │       │   ├── about.rs    # About dialog
+  │       │   ├── application.rs # App settings tab
+  │       │   ├── config.rs   # Config management tab
+  │       │   ├── grenade.rs  # Grenade lineup editor tab
+  │       │   ├── helpers.rs  # UI helper widgets
+  │       │   ├── hud.rs      # HUD settings tab
+  │       │   ├── player.rs   # Player ESP settings tab
+  │       │   └── unsafe.rs   # Unsafe features tab
+  │       └── overlay/
+  │           ├── mod.rs      # ESP drawing logic
+  │           ├── entity.rs   # Entity drawing (weapons, nades, etc.)
+  │           ├── player.rs   # Player drawing (boxes, skeleton, etc.)
+  │           └── hud.rs      # HUD drawing (bomb, FOV, crosshair)
+  └── target/                 # Build artifacts
+
+3. LANGUAGES & FRAMEWORKS
+----------------------------------------
+  Language:      Rust (edition 2024)
+  GUI:           egui 0.34 (immediate mode)
+  Graphics:      OpenGL via glow + glutin 0.32
+  Windowing:     winit 0.30 (X11 only)
+  Math:          glam 0.32 (Vec2, Vec3, Mat4)
+  Serialization: serde + serde_json + toml
+  Memory I/O:    Linux process_vm_readv / process_vm_writev syscalls
+  Mouse Input:   Linux uinput kernel module (virtual mouse device)
+  Build:         Cargo (Rust package manager)
+  Nix:          Flake-based development shell
+  CI:           GitHub Actions
+
+4. BUILD SYSTEM
+----------------------------------------
+  Profiles:
+    [profile.dev]
+    overflow-checks = false
+
+    [profile.release]
+    debug = true
+    lto = true
+
+  Cargo Features:
+    - read-only: process.write() becomes no-op (safety/analysis)
+
+  Build Script (build.rs): embeds short git commit hash as GIT_HASH
+
+  Commands:
+    ./setup.sh              # One-time system setup
+    ./run.sh                # git pull + cargo run --release
+    ./update.sh             # git pull
+    cargo run --release     # Build & run release
+    cargo build --release   # Build release binary
+    cargo build             # Build debug binary
+    cargo clippy            # Lint
+    cargo fmt               # Format
+    cargo audit             # Security audit (via Nix)
+    cargo deny              # License check (via Nix)
+
+5. DEPENDENCIES
+----------------------------------------
+  Direct (Cargo.toml):
+    utils               (git)        - Internal utilities (channel, sync, logging)
+    bytemuck            ^1.24        - Safe type casting
+    egui                ^0.34        - GUI framework
+    egui_glow           ^0.34        - egui OpenGL backend
+    egui-winit          ^0.34        - egui winit integration (X11)
+    epaint              ^0.34        - egui painting (serde)
+    glam                ^0.32        - Math library (bytemuck + serde)
+    glutin              ^0.32        - OpenGL context (X11 + EGL)
+    glutin-winit        ^0.5         - glutin + winit (X11 + EGL)
+    nix                 ^0.31        - Linux syscalls (ioctl)
+    rand                ^0.10        - RNG
+    rand_distr          ^0.6         - Normal distribution
+    serde               ^1.0         - Serialization (derive)
+    serde_json          ^1.0         - JSON
+    strum               ^0.28        - Enum iteration/display (derive)
+    toml                ^1.0         - TOML config
+    uuid                ^1.18        - UUID v4 (serde)
+    winit               ^0.30        - Windowing (X11 only)
+
+6. SOURCE CODE STATISTICS
+----------------------------------------
+  Total:   58 source files, ~9,440 lines of Rust
+  Tests:   None (no #[cfg(test)] or tests/ directory)
+
+7. ARCHITECTURE DETAILS
+----------------------------------------
+  main() spawns two threads:
+    GUI Thread: winit event loop with egui + OpenGL overlay
+    Game Thread: GameManager running CS2 struct's main loop
+
+   Game Loop (~100Hz):
+     1. Update input state
+     2. Read entity list (cache)
+     3. BVH visibility check
+     4. Disable smoke (if enabled)
+     5. Glow (write CGlowProperty on enemy pawns each frame)
+     6. No-flash (if enabled)
+     7. FOV changer (if enabled)
+     8. ESP toggle (if hotkey pressed)
+     9. Triggerbot (if enabled)
+     10. Find target (FOV/distance based)
+     11. Aimbot + RCS (if enabled)
+     12. Update shared Data struct
+
+8. CONFIGURATION
+----------------------------------------
+  Main config: deadlocked.toml
+    Location: $XDG_CONFIG_HOME/deadlocked/ or alongside executable
+    Sections: [aim], [aim.global], [aim.global.aimbot], [aim.global.rcs],
+              [aim.global.triggerbot], [aim.weapons.*], [player], [player.sound],
+              [hud], [hud.sniper_crosshair], [misc]
+
+  Grenade lineups: grenades.json
+    Location: alongside executable
+    Format: HashMap<String, Vec<Grenade>>
+
+9. FEATURES
+----------------------------------------
+  Aimbot:    Hotkey, FOV, Smooth, Start Bullet, Targeting Mode,
+             Visibility Check (VPK/BVH), Head Only / Whole Body,
+             Flash Check, FOV Circle, Per-weapon overrides
+  ESP:       Box (gap/full), Skeleton (health/color), Health Bar,
+             Armor Bar, Player Name, Weapon Icon, Player Tags,
+             Dropped Weapons, Bomb Timer, Sound ESP, Spectator List,
+             Keybind List
+  Triggerbot: Hold/Toggle, Min/Max Delay, Shot Duration,
+               Visibility/Flash/Scope/Velocity checks, Head Only,
+               Offscreen arrows, Per-weapon overrides
+  RCS:       Smoothing, Humanized acceleration clamping with jitter,
+             Per-weapon overrides
+   Misc:      No-flash, FOV changer (1-179), Smoke color/disable,
+              Sniper crosshair, Grenade lineups,
+              Glow (wallhack glow via C_BaseModelEntity.m_Glow)
+
+10. GIT INFO
+----------------------------------------
+  Branch:      rust
+  Remote:      origin/rust
+  Latest:      fd27642 - "fix bg slowdown"
+  Total:       ~20 commits shown
+  Tags:        deadlocked (1 tag)
+
+  Recent commits:
+    fd27642 fix bg slowdown
+    048ba8d maybe fix spectator list
+    03fda12 Merge pull request #304 from melodeu/rcs-human
+    32860ba refactor aimbot return and use Vec2 for history
+    48a1a71 humanized rcs
+    3b8d3d9 Merge pull request #300 from id3v1669/rust
+    ba77272 chore: bump flake & nix & nix-instructions
+    8028262 oops
+    7b28bdc add gap, adjust defaults
+    bd3cc26 sniper crosshair config
+
+11. CI/CD
+----------------------------------------
+  GitHub Actions (.github/workflows/rust.yml)
+  Triggers: push/PR to rust branch
+  Action: cargo build on ubuntu-latest (no tests, no clippy, no release)
+
+12. NIX DEVELOPMENT SHELL
+----------------------------------------
+  Provides: cargo, rustc, pkg-config, clippy, rust-analyzer, rustfmt,
+            strace, gdb, cargo-audit, cargo-deny, X11 libs (libx11,
+            libxcursor, libxkbcommon, libGL, libxi)
+  Activates via: nix develop or direnv allow
+
+13. SAFETY NOTES
+----------------------------------------
+  - read-only cargo feature disables all memory writes
+  - Crash handler sends stacktraces to author (opt-out configurable)
+  - Uses uinput (virtual mouse device named "TI-84 Plus Silver Calculator")
+  -    - Unsafe features (no-flash, FOV, smoke, glow) flagged with VAC risk warnings
+   - Glow writes to inline CGlowProperty at C_BaseModelEntity + 0x0d58
+     (m_fGlowColor=0x08, m_bGlowing=0x51, m_nGlowRange=0x38,
+      m_iGlowType=0x30, m_glowColorOverride=0x40 within CGlowProperty)
+
+14. SUPPORTED DESKTOP ENVIRONMENTS
+----------------------------------------
+  Best:  GNOME (Mutter), KDE (KWin)
+  Good:  SwayWM, Weston
+  Fair:  i3, OpenBox, XFCE, Hyprland (with caveats)

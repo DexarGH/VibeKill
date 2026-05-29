@@ -25,6 +25,19 @@ impl App {
                 });
         });
 
+        collapsing_open(ui, "Glow", |ui| {
+            if ui
+                .checkbox(&mut self.config.misc.glow_enabled, "Glow Enabled")
+                .changed()
+            {
+                self.send_config();
+            }
+
+            if color_picker(ui, "Glow Color", &mut self.config.misc.glow_color) {
+                self.send_config();
+            }
+        });
+
         collapsing_open(ui, "Smokes", |ui| {
             if ui
                 .checkbox(&mut self.config.misc.no_smoke, "No Smoke")

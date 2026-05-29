@@ -264,6 +264,9 @@ pub struct PlayerConfig {
     pub tags: bool,
     pub visible_only: bool,
     pub sound: SoundConfig,
+    pub offscreen_arrows: bool,
+    pub offscreen_arrow_color: Color32,
+    pub offscreen_arrow_size: f32,
 }
 
 impl Default for PlayerConfig {
@@ -286,6 +289,9 @@ impl Default for PlayerConfig {
             tags: true,
             visible_only: false,
             sound: SoundConfig::default(),
+            offscreen_arrows: true,
+            offscreen_arrow_color: Color32::WHITE,
+            offscreen_arrow_size: 5.0,
         }
     }
 }
@@ -326,6 +332,7 @@ pub struct HudConfig {
     pub keybind_list: bool,
     pub spectator_list: bool,
     pub grenade_trails: bool,
+    pub grenade_predict: bool,
     pub smoke_trail_color: Color32,
     pub molotov_trail_color: Color32,
     pub incendiary_trail_color: Color32,
@@ -350,6 +357,7 @@ impl Default for HudConfig {
             keybind_list: false,
             spectator_list: false,
             grenade_trails: true,
+            grenade_predict: true,
             smoke_trail_color: Color32::LIGHT_GRAY,
             molotov_trail_color: Color32::RED,
             incendiary_trail_color: Color32::ORANGE,
@@ -397,6 +405,8 @@ pub struct UnsafeConfig {
     pub no_smoke: bool,
     pub change_smoke_color: bool,
     pub smoke_color: Color32,
+    pub glow_enabled: bool,
+    pub glow_color: Color32,
 }
 
 impl Default for UnsafeConfig {
@@ -409,6 +419,8 @@ impl Default for UnsafeConfig {
             no_smoke: false,
             change_smoke_color: false,
             smoke_color: Color32::RED,
+            glow_enabled: false,
+            glow_color: Color32::from_rgb(0, 255, 0),
         }
     }
 }
