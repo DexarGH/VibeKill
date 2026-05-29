@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use egui::Vec2;
 use utils::{channel::Channel, sync::Mutex};
 use winit::{
     application::ApplicationHandler,
@@ -56,6 +57,9 @@ pub struct App {
     pub current_tab: Tab,
     pub aimbot_tab: AimbotTab,
     pub aimbot_weapon: Weapon,
+
+    pub menu_pos: egui::Pos2,
+    pub menu_size: Vec2,
 }
 
 impl App {
@@ -98,6 +102,9 @@ impl App {
             current_tab: Tab::Aimbot,
             aimbot_tab: AimbotTab::Global,
             aimbot_weapon: Weapon::Ak47,
+
+            menu_pos: egui::pos2(100.0, 100.0),
+            menu_size: Vec2::new(750.0, 450.0),
         };
         ret.send_config();
         ret

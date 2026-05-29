@@ -44,69 +44,93 @@ impl App {
     }
 
     fn gui(&mut self, ui: &mut Ui) {
-        ui.ctx().set_pixels_per_point(self.display_scale);
-        egui::Panel::top("menu_bar")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Selfdestruct").clicked() {
-                        self.selfdestruct();
+        let ctx = ui.ctx();
+        ctx.set_pixels_per_point(self.display_scale);
+
+        egui::Area::new(egui::Id::new("menu_area"))
+            .fixed_pos(self.menu_pos)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let frame = egui::Frame::window(ui.style());
+                frame.show(ui, |ui| {
+                    ui.set_min_size(self.menu_size);
+
+                    let bg_rect = ui.max_rect();
+                    let bg_id = ui.make_persistent_id("bg_drag");
+                    let bg = ui.interact(bg_rect, bg_id, egui::Sense::click_and_drag());
+
+                    if bg.dragged_by(egui::PointerButton::Primary) {
+                        self.menu_pos += bg.drag_delta();
+                    }
+                    if bg.dragged_by(egui::PointerButton::Secondary) {
+                        self.menu_size = (self.menu_size + bg.drag_delta())
+                            .max(egui::Vec2::splat(300.0));
+                    }
+
+                    egui::Panel::top("menu_bar")
+                        .resizable(false)
+                        .show_inside(ui, |ui| {
+                            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                                if ui.button("Selfdestruct").clicked() {
+                                    self.selfdestruct();
+                                }
+                            });
+                        });
+
+                    egui::Panel::left("sidebar")
+                        .resizable(false)
+                        .show_inside(ui, |ui| {
+                            ui.selectable_value(&mut self.current_tab, Tab::Aimbot, "\u{f04fe} Aimbot");
+                            ui.selectable_value(&mut self.current_tab, Tab::Player, "\u{f0013} Player");
+                            ui.selectable_value(&mut self.current_tab, Tab::Hud, "\u{f0379} Hud");
+                            ui.selectable_value(&mut self.current_tab, Tab::Grenades, "\u{f0691} Grenades");
+                            ui.selectable_value(&mut self.current_tab, Tab::Unsafe, "\u{f0ce6} Unsafe");
+                            ui.selectable_value(&mut self.current_tab, Tab::Config, "\u{f168b} Config");
+                            ui.selectable_value(
+                                &mut self.current_tab,
+                                Tab::Application,
+                                "\u{f1577} Application",
+                            );
+
+                            ui.with_layout(egui::Layout::bottom_up(Align::Min), |ui| {
+                                if ui.button("Report Issue").clicked() {
+                                    let _ = std::process::Command::new("xdg-open")
+                                        .arg("https://github.com/avitran0/deadlocked/issues")
+                                        .status();
+                                }
+
+                                if ui.button("About").clicked() {
+                                    self.show_about = true;
+                                }
+
+                                ui.label(egui::RichText::new(format!("{}", self.game_status)).color(
+                                    match self.game_status {
+                                        GameStatus::Working => Colors::GREEN,
+                                        GameStatus::NotStarted => Colors::YELLOW,
+                                    },
+                                ));
+                            });
+                        });
+
+                    egui::CentralPanel::default().show_inside(ui, |ui| match self.current_tab {
+                        Tab::Aimbot => self.aimbot_settings(ui),
+                        Tab::Player => self.player_settings(ui),
+                        Tab::Hud => self.hud_settings(ui),
+                        Tab::Grenades => self.grenade_settings(ui),
+                        Tab::Unsafe => self.unsafe_settings(ui),
+                        Tab::Config => self.config_settings(ui),
+                        Tab::Application => self.application_settings(ui),
+                    });
+
+                    if self.show_about {
+                        self.about(ui.ctx());
+                    }
+
+                    if self.app_config.first_launch {
+                        self.stacktrace_popup(ui.ctx());
                     }
                 });
             });
-
-        egui::Panel::left("sidebar")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                ui.selectable_value(&mut self.current_tab, Tab::Aimbot, "\u{f04fe} Aimbot");
-                ui.selectable_value(&mut self.current_tab, Tab::Player, "\u{f0013} Player");
-                ui.selectable_value(&mut self.current_tab, Tab::Hud, "\u{f0379} Hud");
-                ui.selectable_value(&mut self.current_tab, Tab::Grenades, "\u{f0691} Grenades");
-                ui.selectable_value(&mut self.current_tab, Tab::Unsafe, "\u{f0ce6} Unsafe");
-                ui.selectable_value(&mut self.current_tab, Tab::Config, "\u{f168b} Config");
-                ui.selectable_value(
-                    &mut self.current_tab,
-                    Tab::Application,
-                    "\u{f1577} Application",
-                );
-
-                ui.with_layout(egui::Layout::bottom_up(Align::Min), |ui| {
-                    if ui.button("Report Issue").clicked() {
-                        let _ = std::process::Command::new("xdg-open")
-                            .arg("https://github.com/avitran0/deadlocked/issues")
-                            .status();
-                    }
-
-                    if ui.button("About").clicked() {
-                        self.show_about = true;
-                    }
-
-                    ui.label(egui::RichText::new(format!("{}", self.game_status)).color(
-                        match self.game_status {
-                            GameStatus::Working => Colors::GREEN,
-                            GameStatus::NotStarted => Colors::YELLOW,
-                        },
-                    ));
-                });
-            });
-
-        egui::CentralPanel::default().show_inside(ui, |ui| match self.current_tab {
-            Tab::Aimbot => self.aimbot_settings(ui),
-            Tab::Player => self.player_settings(ui),
-            Tab::Hud => self.hud_settings(ui),
-            Tab::Grenades => self.grenade_settings(ui),
-            Tab::Unsafe => self.unsafe_settings(ui),
-            Tab::Config => self.config_settings(ui),
-            Tab::Application => self.application_settings(ui),
-        });
-
-        if self.show_about {
-            self.about(ui.ctx());
-        }
-
-        if self.app_config.first_launch {
-            self.stacktrace_popup(ui.ctx());
-        }
     }
 
     fn weapon_config(&mut self) -> &mut WeaponConfig {
