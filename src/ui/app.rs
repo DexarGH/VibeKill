@@ -127,6 +127,9 @@ impl App {
                     self.show_menu = !self.show_menu;
                     if let Some(overlay) = &self.overlay {
                         let _ = overlay.window().set_cursor_hittest(self.show_menu);
+                        if self.show_menu {
+                            overlay.ungrab_input();
+                        }
                     }
                 }
             }
@@ -197,7 +200,10 @@ impl ApplicationHandler for App {
                         NamedKey::Insert => {
                             if event.state == ElementState::Pressed && !event.repeat {
                                 self.show_menu = !self.show_menu;
-                                let _ = overlay.window().set_cursor_hittest(self.show_menu);
+                                overlay.window().set_cursor_hittest(self.show_menu).ok();
+                                if self.show_menu {
+                                    overlay.ungrab_input();
+                                }
                             }
                             None
                         }

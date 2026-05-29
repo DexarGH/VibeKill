@@ -423,9 +423,10 @@ impl CS2 {
             pitch.cos() * yaw.sin(),
             -pitch.sin(),
         );
+        let right = Vec3::new(-yaw.sin(), yaw.cos(), 0.0);
 
         let mut vel = forward * speed + player_velocity;
-        let mut pos = origin;
+        let mut pos = origin + forward * 16.0 + right * 8.0;
         let feet_z = local_player.position(self).z;
 
         let mut path = Vec::with_capacity(MAX_STEPS);

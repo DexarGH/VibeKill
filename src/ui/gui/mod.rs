@@ -153,6 +153,10 @@ impl App {
 
         let overlay = self.overlay.as_mut().unwrap();
 
+        if self.show_menu {
+            overlay.ungrab_input();
+        }
+
         let cursor_hittest = self.show_menu;
         overlay.window().set_cursor_hittest(cursor_hittest).unwrap();
 

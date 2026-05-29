@@ -208,6 +208,17 @@ impl WindowContext {
     pub fn paint(&mut self) {
         self.egui_glow.paint(&self.window);
     }
+
+    pub fn ungrab_input(&self) {
+        use x11rb::connection::Connection;
+        use x11rb::protocol::xproto::ConnectionExt;
+
+        if let Ok((conn, _)) = x11rb::connect(None) {
+            let _ = conn.ungrab_pointer(x11rb::CURRENT_TIME);
+            let _ = conn.ungrab_keyboard(x11rb::CURRENT_TIME);
+            let _ = conn.flush();
+        }
+    }
 }
 
 impl Drop for WindowContext {
