@@ -9,7 +9,7 @@ use utils::{channel::Channel, sync::Mutex};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, StartCause, WindowEvent},
-    keyboard::NamedKey,
+    keyboard::{Key, NamedKey},
 };
 
 use crate::{
@@ -30,10 +30,10 @@ use crate::{
 };
 
 pub struct App {
-    pub gui: Option<WindowContext>,
     pub overlay: Option<WindowContext>,
     next_frame_time: Instant,
     pub show_about: bool,
+    pub show_menu: bool,
 
     pub channel: Channel<GameMessage, UiMessage>,
     pub data: Arc<Mutex<Data>>,
@@ -60,25 +60,22 @@ pub struct App {
 
 impl App {
     pub fn new(channel: Channel<GameMessage, UiMessage>, data: Arc<Mutex<Data>>) -> Self {
-        // read config
         let config = parse_config(&CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
-        // override config if invalid
         write_config(&config, &CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
         let grenades = read_grenades();
 
         let app_config = read_app_config();
 
-        // was selected to be no,
         if !app_config.first_launch && !app_config.send_stacktraces {
             STACKTRACE_SENT.store(true, Ordering::Relaxed);
         }
 
         let ret = Self {
-            gui: None,
             overlay: None,
 
             next_frame_time: Instant::now() + Duration::from_millis(16),
             show_about: false,
+            show_menu: false,
 
             channel,
             data,
@@ -107,18 +104,15 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let gui = WindowContext::new(event_loop, false, self.config.accent_color);
-        let overlay = WindowContext::new(event_loop, true, self.config.accent_color);
-
-        self.display_scale = gui.window().scale_factor() as f32;
-        utils::info!("detected display scale: {}", self.display_scale);
-
-        self.gui = Some(gui);
-        self.overlay = Some(overlay);
+        self.overlay = Some(WindowContext::new(event_loop, true, self.config.accent_color));
     }
 
     fn frame_duration(&self) -> Duration {
         Duration::from_secs_f32(1.0 / self.config.fps as f32)
+    }
+
+    pub fn selfdestruct(&self) {
+        std::process::exit(0);
     }
 }
 
@@ -151,76 +145,65 @@ impl ApplicationHandler for App {
 
     fn window_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
         window_id: winit::window::WindowId,
         window_event: WindowEvent,
     ) {
         while let Ok(message) = self.channel.try_receive() {
-            self.game_status = message.0;
+            match message {
+                UiMessage::Status(status) => self.game_status = status,
+                UiMessage::ToggleMenu => self.show_menu = !self.show_menu,
+            }
         }
 
-        let Some(gui) = &self.gui else {
-            return;
-        };
-        let Some(overlay) = &self.overlay else {
+        let Some(overlay) = &mut self.overlay else {
             return;
         };
 
-        let window = if gui.window().id() == window_id {
-            gui
-        } else if overlay.window().id() == window_id {
-            overlay
-        } else {
+        if overlay.window().id() != window_id {
             return;
-        };
+        }
 
         match &window_event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => self.selfdestruct(),
             WindowEvent::Resized(new_size) => {
-                window.resize(*new_size);
-            }
-            WindowEvent::RedrawRequested => {
-                if !self
-                    .gui
-                    .as_ref()
-                    .map(|window| window.window().id() == window_id)
-                    .unwrap_or_default()
-                {
-                    return;
-                }
-                self.render();
+                overlay.resize(*new_size);
             }
             WindowEvent::KeyboardInput {
                 event,
                 is_synthetic: false,
                 ..
             } => {
-                if let winit::keyboard::Key::Named(key) = event.logical_key {
+                if let Key::Named(key) = &event.logical_key {
                     let modifiers = match key {
                         NamedKey::Control => Some(egui::Modifiers::CTRL),
                         NamedKey::Shift => Some(egui::Modifiers::SHIFT),
                         NamedKey::Alt => Some(egui::Modifiers::ALT),
+                        NamedKey::Insert => {
+                            if event.state == ElementState::Pressed && !event.repeat {
+                                self.show_menu = !self.show_menu;
+                            }
+                            None
+                        }
                         _ => None,
                     };
 
                     if let Some(modifiers) = modifiers {
-                        self.gui.as_mut().unwrap().process_modifier(
+                        overlay.process_modifier(
                             modifiers,
                             event.state == ElementState::Pressed,
                             event.repeat,
                         );
                     }
                 }
-                let _ = self
-                    .gui
-                    .as_mut()
-                    .map(|gui| gui.process_event(&window_event));
+                if self.show_menu {
+                    let _ = overlay.process_event(&window_event);
+                }
             }
             _ => {
-                let _ = self
-                    .gui
-                    .as_mut()
-                    .map(|gui| gui.process_event(&window_event));
+                if self.show_menu {
+                    let _ = overlay.process_event(&window_event);
+                }
             }
         }
     }

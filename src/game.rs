@@ -49,7 +49,7 @@ impl GameManager {
     }
 
     pub fn run(&mut self) {
-        self.send_message(UiMessage(GameStatus::NotStarted));
+        self.send_message(UiMessage::Status(GameStatus::NotStarted));
         let mut previous_status = GameStatus::NotStarted;
         loop {
             let start = Instant::now();
@@ -60,7 +60,7 @@ impl GameManager {
             let mut is_valid = self.cs2.is_valid();
             if !is_valid {
                 if previous_status == GameStatus::Working {
-                    self.send_message(UiMessage(GameStatus::NotStarted));
+                    self.send_message(UiMessage::Status(GameStatus::NotStarted));
                     previous_status = GameStatus::NotStarted;
                 }
                 self.cs2.setup();
@@ -69,10 +69,13 @@ impl GameManager {
 
             if is_valid {
                 if previous_status == GameStatus::NotStarted {
-                    self.send_message(UiMessage(GameStatus::Working));
+                    self.send_message(UiMessage::Status(GameStatus::Working));
                     previous_status = GameStatus::Working;
                 }
                 self.cs2.run(&self.config, &mut self.mouse);
+                if self.cs2.key_just_pressed(crate::cs2::key_codes::KeyCode::Insert) {
+                    self.send_message(UiMessage::ToggleMenu);
+                }
                 let mut data = self.data.lock();
                 self.cs2.data(&self.config, &mut data);
             } else {

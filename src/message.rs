@@ -23,4 +23,7 @@ impl Display for GameStatus {
 pub struct GameMessage(pub Box<Config>);
 
 #[derive(Debug, Clone)]
-pub struct UiMessage(pub GameStatus);
+pub enum UiMessage {
+    Status(GameStatus),
+    ToggleMenu,
+}

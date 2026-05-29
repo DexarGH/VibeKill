@@ -45,6 +45,19 @@ impl App {
 
     fn gui(&mut self, ui: &mut Ui) {
         ui.ctx().set_pixels_per_point(self.display_scale);
+        egui::Panel::top("menu_bar")
+            .resizable(false)
+            .show_inside(ui, |ui| {
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("Selfdestruct").clicked() {
+                        self.selfdestruct();
+                    }
+                    if ui.button("Close").clicked() {
+                        self.show_menu = false;
+                    }
+                });
+            });
+
         egui::Panel::left("sidebar")
             .resizable(false)
             .show_inside(ui, |ui| {
@@ -114,24 +127,11 @@ impl App {
     pub fn render(&mut self) {
         let self_ptr = self as *mut Self;
 
-        let gui = self.gui.as_mut().unwrap();
-
-        if let Err(err) = gui.make_current() {
-            utils::error!("could not make gui window current: {err}");
-            return;
-        }
-        gui.run(|ui| (unsafe { &mut *self_ptr }).gui(ui));
-        gui.clear();
-        gui.paint();
-
-        if let Err(err) = gui.swap_buffers() {
-            utils::error!("could not swap gui window buffers: {err}");
-            return;
-        }
-
         let overlay = self.overlay.as_mut().unwrap();
 
-        overlay.window().set_cursor_hittest(false).unwrap();
+        let cursor_hittest = self.show_menu;
+        overlay.window().set_cursor_hittest(cursor_hittest).unwrap();
+
         if let Err(err) = overlay.make_current() {
             utils::error!("could not make overlay window current: {err}");
             return;
@@ -139,6 +139,9 @@ impl App {
 
         overlay.run(move |ui| {
             (unsafe { &mut *self_ptr }).overlay(ui);
+            if (unsafe { &mut *self_ptr }).show_menu {
+                (unsafe { &mut *self_ptr }).gui(ui);
+            }
         });
         overlay.clear();
         overlay.paint();
