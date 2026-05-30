@@ -1,120 +1,78 @@
 use egui::{DragValue, Ui};
 
-use crate::ui::{
-    app::App,
-    gui::helpers::{collapsing_open, color_picker},
-};
+use crate::ui::app::App;
 
 impl App {
-    pub fn unsafe_settings(&mut self, ui: &mut Ui) {
-        ui.columns(2, |cols| {
-            let left = &mut cols[0];
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, true])
-                .id_salt("unsafe_left")
-                .show(left, |left| {
-                    self.unsafe_left(left);
-                });
+    pub fn glow_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
 
-            let right = &mut cols[1];
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, true])
-                .id_salt("unsafe_right")
-                .show(right, |right| {
-                    self.unsafe_right(right);
-                });
-        });
+        changed |= ui
+            .checkbox(&mut self.config.misc.glow_enabled, "Enable Glow")
+            .changed();
 
-        collapsing_open(ui, "Glow", |ui| {
-            if ui
-                .checkbox(&mut self.config.misc.glow_enabled, "Glow Enabled")
-                .changed()
-            {
-                self.send_config();
-            }
-
-            if color_picker(ui, "Glow Color", &mut self.config.misc.glow_color) {
-                self.send_config();
-            }
-        });
-
-        collapsing_open(ui, "Smokes", |ui| {
-            if ui
-                .checkbox(&mut self.config.misc.no_smoke, "No Smoke")
-                .changed()
-            {
-                self.send_config();
-            }
-
-            if ui
-                .checkbox(
-                    &mut self.config.misc.change_smoke_color,
-                    "Change Smoke Color",
-                )
-                .changed()
-            {
-                self.send_config();
-            }
-
-            if color_picker(ui, "Smoke Color", &mut self.config.misc.smoke_color) {
-                self.send_config();
-            }
-        });
+        if changed {
+            self.send_config();
+        }
     }
 
-    fn unsafe_left(&mut self, ui: &mut Ui) {
-        collapsing_open(ui, "No Flash", |ui| {
-            if ui
-                .checkbox(&mut self.config.misc.no_flash, "No Flash")
-                .changed()
-            {
-                self.send_config();
-            }
+    pub fn no_flash_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
 
-            ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        DragValue::new(&mut self.config.misc.max_flash_alpha)
-                            .range(0.0..=255.0)
-                            .speed(0.5)
-                            .max_decimals(0),
-                    )
-                    .changed()
-                {
-                    self.send_config();
-                }
+        changed |= ui
+            .checkbox(&mut self.config.misc.no_flash, "No Flash")
+            .changed();
+
+        ui.add_space(4.0);
+
+        changed |= ui
+            .horizontal(|ui| {
                 ui.label("Max Flash Alpha");
-            });
-        });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.misc.max_flash_alpha).range(0.0..=255.0).speed(0.5))
+                }).response.changed()
+            })
+            .inner;
+
+        if changed {
+            self.send_config();
+        }
     }
 
-    fn unsafe_right(&mut self, ui: &mut Ui) {
-        collapsing_open(ui, "FOV Changer", |ui| {
-            if ui
-                .checkbox(&mut self.config.misc.fov_changer, "FOV Changer")
-                .changed()
-            {
-                self.send_config();
-            }
+    pub fn fov_changer_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
 
-            ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        DragValue::new(&mut self.config.misc.desired_fov)
-                            .speed(0.1)
-                            .range(1..=179),
-                    )
-                    .changed()
-                {
-                    self.send_config();
-                }
+        changed |= ui
+            .checkbox(&mut self.config.misc.fov_changer, "FOV Changer")
+            .changed();
+
+        ui.add_space(4.0);
+
+        changed |= ui
+            .horizontal(|ui| {
                 ui.label("Desired FOV");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.misc.desired_fov).range(1..=179).speed(0.1))
+                }).response.changed()
+            })
+            .inner;
 
-                if ui.button("Reset").clicked() {
-                    self.config.misc.desired_fov = crate::constants::cs2::DEFAULT_FOV;
-                    self.send_config();
-                }
-            });
-        });
+        if changed {
+            self.send_config();
+        }
+    }
+
+    pub fn no_smoke_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
+
+        changed |= ui
+            .checkbox(&mut self.config.misc.no_smoke, "No Smoke")
+            .changed();
+        changed |= ui
+            .checkbox(&mut self.config.misc.change_smoke_color, "Change Smoke Color")
+            .changed();
+
+        if changed {
+            self.send_config();
+        }
     }
 }

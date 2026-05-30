@@ -29,6 +29,24 @@ use crate::{
     },
 };
 
+#[derive(Clone, Copy, PartialEq, Hash)]
+pub enum ModuleId {
+    Aimbot,
+    Triggerbot,
+    Rcs,
+    PlayerEsp,
+    SoundEsp,
+    Hud,
+    BombTimer,
+    FovCircle,
+    SniperCrosshair,
+    GrenadeTrails,
+    Glow,
+    NoFlash,
+    FovChanger,
+    NoSmoke,
+}
+
 pub struct App {
     pub overlay: Option<WindowContext>,
     next_frame_time: Instant,
@@ -42,7 +60,6 @@ pub struct App {
     pub display_scale: f32,
     pub trails: HashMap<u64, Trail>,
     pub player_sounds: HashMap<u64, (Instant, SoundType)>,
-
     pub grenades: GrenadeList,
     pub new_grenade: Grenade,
     pub current_grenade: Option<(String, usize)>,
@@ -56,15 +73,26 @@ pub struct App {
     pub current_tab: Tab,
     pub aimbot_tab: AimbotTab,
     pub aimbot_weapon: Weapon,
+    pub triggerbot_tab: AimbotTab,
+    pub triggerbot_weapon: Weapon,
+    pub rcs_tab: AimbotTab,
+    pub rcs_weapon: Weapon,
 
     pub menu_pos: egui::Pos2,
+
+    pub detached_module: Option<ModuleId>,
+    pub detached_module_pos: egui::Pos2,
+    pub show_bone_selector: bool,
+    pub bone_selector_pos: egui::Pos2,
+    pub show_settings_popup: bool,
+    pub settings_popup_pos: egui::Pos2,
+    pub settings_popup_initialized: bool,
 }
 
 impl App {
     pub fn new(channel: Channel<GameMessage, UiMessage>, data: Arc<Mutex<Data>>) -> Self {
         let config = parse_config(&CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
         write_config(&config, &CONFIG_PATH.join(DEFAULT_CONFIG_NAME));
-        let grenades = read_grenades();
 
         let app_config = read_app_config();
 
@@ -92,16 +120,27 @@ impl App {
             display_scale: 1.0,
             trails: HashMap::new(),
             player_sounds: HashMap::new(),
-
-            grenades,
+            grenades: read_grenades(),
             new_grenade: Grenade::new(),
             current_grenade: None,
 
-            current_tab: Tab::Aimbot,
+            current_tab: Tab::Aim,
             aimbot_tab: AimbotTab::Global,
             aimbot_weapon: Weapon::Ak47,
+            triggerbot_tab: AimbotTab::Global,
+            triggerbot_weapon: Weapon::Ak47,
+            rcs_tab: AimbotTab::Global,
+            rcs_weapon: Weapon::Ak47,
 
             menu_pos: egui::pos2(100.0, 100.0),
+
+            detached_module: None,
+            detached_module_pos: egui::Pos2::ZERO,
+            show_bone_selector: false,
+            bone_selector_pos: egui::Pos2::ZERO,
+            show_settings_popup: false,
+            settings_popup_pos: egui::pos2(200.0, 200.0),
+            settings_popup_initialized: false,
         };
         ret.send_config();
         ret
@@ -199,10 +238,13 @@ impl ApplicationHandler for App {
                         NamedKey::Alt => Some(egui::Modifiers::ALT),
                         NamedKey::Insert => {
                             if event.state == ElementState::Pressed && !event.repeat {
+                                utils::info!("Insert: toggling menu");
                                 self.show_menu = !self.show_menu;
-                                overlay.window().set_cursor_hittest(self.show_menu).ok();
+                                let _ = overlay.window().set_cursor_hittest(self.show_menu);
                                 if self.show_menu {
+                                    utils::info!("Insert: calling ungrab_input");
                                     overlay.ungrab_input();
+                                    utils::info!("Insert: ungrab_input done");
                                 }
                             }
                             None

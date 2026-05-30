@@ -1,213 +1,125 @@
 use egui::{DragValue, Ui};
 
-use crate::ui::{
-    app::App,
-    gui::helpers::{checkbox, collapsing_open, color_picker, drag, scroll},
-};
+use crate::ui::app::App;
 
 impl App {
-    pub fn hud_settings(&mut self, ui: &mut Ui) {
-        scroll(ui, "hud", |ui| {
-            ui.columns(2, |cols| {
-                let left = &mut cols[0];
-                self.hud_left(left);
-                let right = &mut cols[1];
-                self.hud_right(right);
-            });
+    pub fn hud_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
 
-            collapsing_open(ui, "Colors", |ui| {
-                if color_picker(ui, "Text Color", &mut self.config.hud.text_color) {
-                    self.send_config();
-                }
+        changed |= ui.checkbox(&mut self.config.hud.bomb_timer, "Bomb Timer").changed();
+        changed |= ui.checkbox(&mut self.config.hud.fov_circle, "FOV Circle").changed();
+        changed |= ui.checkbox(&mut self.config.hud.dropped_weapons, "Dropped Weapons").changed();
+        changed |= ui.checkbox(&mut self.config.hud.keybind_list, "Keybind List").changed();
+        changed |= ui.checkbox(&mut self.config.hud.spectator_list, "Spectator List").changed();
+        changed |= ui.checkbox(&mut self.config.hud.grenade_trails, "Grenade Trails").changed();
+        changed |= ui.checkbox(&mut self.config.hud.grenade_predict, "Grenade Predict").changed();
+        changed |= ui.checkbox(&mut self.config.hud.text_outline, "Text Outline").changed();
 
-                if color_picker(
-                    ui,
-                    "Crosshair Color",
-                    &mut self.config.hud.sniper_crosshair.color,
-                ) {
-                    self.send_config();
-                }
-            });
+        ui.add_space(4.0);
 
-            ui.collapsing("Grenade Trails", |ui| {
-                if checkbox(
-                    ui,
-                    "Enable Grenade Trails",
-                    &mut self.config.hud.grenade_trails,
-                ) {
-                    self.send_config();
-                }
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Line Width");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.line_width).range(0.1..=8.0).speed(0.02))
+                }).response.changed()
+            })
+            .inner;
 
-                if checkbox(ui, "Grenade Predict", &mut self.config.hud.grenade_predict) {
-                    self.send_config();
-                }
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Font Size");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.font_size).range(1.0..=99.0).speed(0.2))
+                }).response.changed()
+            })
+            .inner;
 
-                if color_picker(
-                    ui,
-                    "Smoke Trail Color",
-                    &mut self.config.hud.smoke_trail_color,
-                ) {
-                    self.send_config();
-                }
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Icon Size");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.icon_size).range(1.0..=99.0).speed(0.2))
+                }).response.changed()
+            })
+            .inner;
 
-                if color_picker(
-                    ui,
-                    "Molotov Trail Color",
-                    &mut self.config.hud.molotov_trail_color,
-                ) {
-                    self.send_config();
-                }
-
-                if color_picker(
-                    ui,
-                    "Incendiary Trail Color",
-                    &mut self.config.hud.incendiary_trail_color,
-                ) {
-                    self.send_config();
-                }
-
-                if color_picker(
-                    ui,
-                    "Flash Trail Color",
-                    &mut self.config.hud.flash_trail_color,
-                ) {
-                    self.send_config();
-                }
-
-                if color_picker(
-                    ui,
-                    "HE Grenade Trail Color",
-                    &mut self.config.hud.he_trail_color,
-                ) {
-                    self.send_config();
-                }
-
-                if color_picker(
-                    ui,
-                    "Decoy Trail Color",
-                    &mut self.config.hud.decoy_trail_color,
-                ) {
-                    self.send_config();
-                }
-            });
-        });
+        if changed {
+            self.send_config();
+        }
     }
 
-    fn hud_left(&mut self, ui: &mut Ui) {
-        collapsing_open(ui, "HUD", |ui| {
-            if checkbox(ui, "Bomb Timer", &mut self.config.hud.bomb_timer) {
-                self.send_config();
-            }
-
-            if checkbox(ui, "FOV Circle", &mut self.config.hud.fov_circle) {
-                self.send_config();
-            }
-
-            if checkbox(ui, "Dropped Weapons", &mut self.config.hud.dropped_weapons) {
-                self.send_config();
-            }
-
-            if checkbox(ui, "Keybind List", &mut self.config.hud.keybind_list) {
-                self.send_config();
-            }
-
-            if checkbox(ui, "Spectator List", &mut self.config.hud.spectator_list) {
-                self.send_config();
-            }
-        });
-
-        ui.collapsing("Sniper Crosshair", |ui| {
-            if checkbox(ui, "Enabled", &mut self.config.hud.sniper_crosshair.enabled) {
-                self.send_config();
-            }
-
-            if drag(
-                ui,
-                "Line Length",
-                DragValue::new(&mut self.config.hud.sniper_crosshair.line_length)
-                    .range(0.1..=500.0)
-                    .max_decimals(1)
-                    .speed(0.2),
-            ) {
-                self.send_config();
-            }
-
-            if drag(
-                ui,
-                "Line Width",
-                DragValue::new(&mut self.config.hud.sniper_crosshair.line_width)
-                    .range(0.1..=10.0)
-                    .max_decimals(1)
-                    .speed(0.005),
-            ) {
-                self.send_config();
-            }
-
-            if drag(
-                ui,
-                "Gap",
-                DragValue::new(&mut self.config.hud.sniper_crosshair.gap)
-                    .range(0.0..=200.0)
-                    .max_decimals(1)
-                    .speed(0.2),
-            ) {
-                self.send_config();
-            }
-        });
+    pub fn bomb_timer_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
+        changed |= ui.checkbox(&mut self.config.hud.bomb_timer, "Bomb Timer").changed();
+        ui.label("Shows the bomb timer on screen.");
+        if changed {
+            self.send_config();
+        }
     }
 
-    fn hud_right(&mut self, ui: &mut Ui) {
-        collapsing_open(ui, "Appearance", |ui| {
-            if checkbox(ui, "Text Outline", &mut self.config.hud.text_outline) {
-                self.send_config();
-            }
+    pub fn fov_circle_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
+        changed |= ui.checkbox(&mut self.config.hud.fov_circle, "FOV Circle").changed();
+        ui.label("Shows the aimbot FOV circle around crosshair.");
+        if changed {
+            self.send_config();
+        }
+    }
 
-            if drag(
-                ui,
-                "Line Width",
-                DragValue::new(&mut self.config.hud.line_width)
-                    .range(0.1..=8.0)
-                    .speed(0.02)
-                    .max_decimals(1),
-            ) {
-                self.send_config();
-            }
+    pub fn sniper_crosshair_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
 
-            if drag(
-                ui,
-                "Font Size",
-                DragValue::new(&mut self.config.hud.font_size)
-                    .range(1.0..=99.0)
-                    .speed(0.2)
-                    .max_decimals(1),
-            ) {
-                self.send_config();
-            }
+        changed |= ui
+            .checkbox(&mut self.config.hud.sniper_crosshair.enabled, "Enable")
+            .changed();
 
-            if drag(
-                ui,
-                "Icon Size",
-                DragValue::new(&mut self.config.hud.icon_size)
-                    .range(1.0..=99.0)
-                    .speed(0.2)
-                    .max_decimals(1),
-            ) {
-                self.send_config();
-            }
-        });
+        ui.add_space(4.0);
 
-        ui.collapsing("Advanced", |ui| {
-            if checkbox(ui, "Debug Overlay", &mut self.config.hud.debug) {
-                self.send_config();
-            }
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Line Length");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.sniper_crosshair.line_length).range(0.1..=500.0).speed(0.2))
+                }).response.changed()
+            })
+            .inner;
 
-            if drag(
-                ui,
-                "FPS",
-                DragValue::new(&mut self.config.fps).range(30..=500),
-            ) {
-                self.send_config();
-            }
-        });
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Line Width");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.sniper_crosshair.line_width).range(0.1..=10.0).speed(0.005))
+                }).response.changed()
+            })
+            .inner;
+
+        changed |= ui
+            .horizontal(|ui| {
+                ui.label("Gap");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(DragValue::new(&mut self.config.hud.sniper_crosshair.gap).range(0.0..=200.0).speed(0.2))
+                }).response.changed()
+            })
+            .inner;
+
+        if changed {
+            self.send_config();
+        }
+    }
+
+    pub fn grenade_trails_popup(&mut self, ui: &mut Ui) {
+        let mut changed = false;
+
+        changed |= ui
+            .checkbox(&mut self.config.hud.grenade_trails, "Enable Trails")
+            .changed();
+        changed |= ui
+            .checkbox(&mut self.config.hud.grenade_predict, "Grenade Predict")
+            .changed();
+
+        if changed {
+            self.send_config();
+        }
     }
 }

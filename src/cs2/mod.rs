@@ -459,7 +459,18 @@ impl CS2 {
 
             if pos.z <= feet_z {
                 path.push(pos);
-                break;
+
+                bounces += 1;
+                if bounces >= MAX_BOUNCES {
+                    break;
+                }
+
+                let normal = Vec3::new(0.0, 0.0, 1.0);
+                let vn = vel.dot(normal);
+                let vt = vel - vn * normal;
+                vel = vt - vn * restitution * normal;
+                pos.z = feet_z + 2.0;
+                continue;
             }
 
             path.push(pos);

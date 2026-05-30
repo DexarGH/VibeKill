@@ -1,4 +1,4 @@
-#![allow(unused)]
+use std::fmt;
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
@@ -23,6 +23,32 @@ pub enum Bones {
     RightHip = 20,
     RightKnee = 21,
     RightFoot = 22,
+}
+
+impl fmt::Display for Bones {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hip => write!(f, "Hip"),
+            Self::Spine1 => write!(f, "Spine 1"),
+            Self::Spine2 => write!(f, "Spine 2"),
+            Self::Spine3 => write!(f, "Spine 3"),
+            Self::Spine4 => write!(f, "Spine 4"),
+            Self::Neck => write!(f, "Neck"),
+            Self::Head => write!(f, "Head"),
+            Self::LeftShoulder => write!(f, "Left Shoulder"),
+            Self::LeftElbow => write!(f, "Left Elbow"),
+            Self::LeftHand => write!(f, "Left Hand"),
+            Self::RightShoulder => write!(f, "Right Shoulder"),
+            Self::RightElbow => write!(f, "Right Elbow"),
+            Self::RightHand => write!(f, "Right Hand"),
+            Self::LeftHip => write!(f, "Left Hip"),
+            Self::LeftKnee => write!(f, "Left Knee"),
+            Self::LeftFoot => write!(f, "Left Foot"),
+            Self::RightHip => write!(f, "Right Hip"),
+            Self::RightKnee => write!(f, "Right Knee"),
+            Self::RightFoot => write!(f, "Right Foot"),
+        }
+    }
 }
 
 impl Bones {

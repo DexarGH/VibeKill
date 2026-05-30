@@ -1,6 +1,6 @@
 use std::{num::NonZeroU32, sync::Arc};
 
-use egui::{Color32, FontData, FontDefinitions, Stroke, Style};
+use egui::{Color32, CornerRadius, FontData, FontDefinitions, Stroke, Style, Vec2};
 use egui_glow::glow::{self, HasContext as _};
 use glutin::prelude::PossiblyCurrentGlContext;
 use winit::platform::x11::{WindowAttributesExtX11, WindowType};
@@ -15,6 +15,13 @@ pub struct WindowContext {
     glow: Arc<glow::Context>,
     egui_glow: egui_glow::EguiGlow,
     clear_color: Color32,
+    x11: Option<X11Context>,
+}
+
+struct X11Context {
+    _libx11: libloading::Library,
+    display: *mut std::ffi::c_void,
+    root: u64,
 }
 
 impl WindowContext {
@@ -146,6 +153,8 @@ impl WindowContext {
             Color32::BLACK
         };
 
+        let x11 = init_x11();
+
         Self {
             window,
             gl_context,
@@ -154,6 +163,7 @@ impl WindowContext {
             glow,
             egui_glow,
             clear_color,
+            x11,
         }
     }
 
@@ -210,34 +220,73 @@ impl WindowContext {
     }
 
     pub fn ungrab_input(&self) {
+        utils::info!("ungrab_input: start");
+        let Some(ref x11) = self.x11 else {
+            utils::info!("ungrab_input: no x11 context");
+            return;
+        };
         unsafe {
-            if let Ok(lib) = libloading::Library::new("libX11.so.6") {
-                type XOpenDisplayFn =
-                    unsafe extern "C" fn(name: *const std::ffi::c_char) -> *mut std::ffi::c_void;
-                type XUngrabFn =
-                    unsafe extern "C" fn(display: *mut std::ffi::c_void, time: std::ffi::c_ulong) -> std::ffi::c_int;
-                type XSyncFn =
-                    unsafe extern "C" fn(display: *mut std::ffi::c_void, discard: std::ffi::c_int) -> std::ffi::c_int;
+            // ---- Core X11 grabs (XGrabPointer / XGrabKeyboard) ----
+            type XGrabPointerFn = unsafe extern "C" fn(*mut std::ffi::c_void, u64, i32, u32, i32, i32, u64, u64, u64) -> i32;
+            type XGrabKeyboardFn = unsafe extern "C" fn(*mut std::ffi::c_void, u64, i32, i32, i32, u64) -> i32;
+            type XUngrabFn = unsafe extern "C" fn(*mut std::ffi::c_void, u64) -> i32;
+            type XSyncFn = unsafe extern "C" fn(*mut std::ffi::c_void, i32) -> i32;
 
-                let open_display = lib.get::<XOpenDisplayFn>(b"XOpenDisplay\0").ok().unwrap();
-                let ungrab_pointer = lib.get::<XUngrabFn>(b"XUngrabPointer\0").ok().unwrap();
-                let ungrab_keyboard = lib.get::<XUngrabFn>(b"XUngrabKeyboard\0").ok().unwrap();
-                let x_sync = lib.get::<XSyncFn>(b"XSync\0").ok().unwrap();
-
-                let display = open_display(std::ptr::null());
-                if !display.is_null() {
-                    for _ in 0..10 {
-                        ungrab_pointer(display, 0);
-                        ungrab_keyboard(display, 0);
-                        x_sync(display, 0);
-                    }
-                    let _ = lib.get::<unsafe extern "C" fn(*mut std::ffi::c_void) -> std::ffi::c_int>(
-                        b"XCloseDisplay\0",
-                    )
-                    .map(|close| close(display));
-                }
+            if let (Some(grab_pointer), Some(ungrab_pointer), Some(grab_keyboard), Some(ungrab_keyboard), Some(x_sync)) = (
+                x11._libx11.get::<XGrabPointerFn>(b"XGrabPointer\0").ok(),
+                x11._libx11.get::<XUngrabFn>(b"XUngrabPointer\0").ok(),
+                x11._libx11.get::<XGrabKeyboardFn>(b"XGrabKeyboard\0").ok(),
+                x11._libx11.get::<XUngrabFn>(b"XUngrabKeyboard\0").ok(),
+                x11._libx11.get::<XSyncFn>(b"XSync\0").ok(),
+            ) {
+                utils::info!("ungrab_input: calling core x11 grab");
+                grab_pointer(x11.display, x11.root, 0, 0, 1, 1, 0, 0, 0);
+                ungrab_pointer(x11.display, 0);
+                grab_keyboard(x11.display, x11.root, 0, 1, 1, 0);
+                ungrab_keyboard(x11.display, 0);
+                x_sync(x11.display, 0);
+                utils::info!("ungrab_input: core x11 done");
             }
+
+            let _ = self.window.set_cursor_grab(winit::window::CursorGrabMode::None);
+            utils::info!("ungrab_input: done");
         }
+    }
+}
+
+fn init_x11() -> Option<X11Context> {
+    unsafe {
+        let libx11 = match libloading::Library::new("libX11.so.6") {
+            Ok(lib) => lib,
+            Err(e) => {
+                utils::warn!("init_x11: failed to load libX11.so.6: {e}");
+                return None;
+            }
+        };
+        let open_display = match libx11.get::<unsafe extern "C" fn(*const std::ffi::c_char) -> *mut std::ffi::c_void>(b"XOpenDisplay\0") {
+            Ok(f) => f,
+            Err(e) => {
+                utils::warn!("init_x11: XOpenDisplay not found: {e}");
+                return None;
+            }
+        };
+        let default_root = match libx11.get::<unsafe extern "C" fn(*mut std::ffi::c_void) -> u64>(b"XDefaultRootWindow\0") {
+            Ok(f) => f,
+            Err(e) => {
+                utils::warn!("init_x11: XDefaultRootWindow not found: {e}");
+                return None;
+            }
+        };
+
+        let display = open_display(std::ptr::null());
+        if display.is_null() {
+            utils::warn!("init_x11: XOpenDisplay returned null");
+            return None;
+        }
+        let root = default_root(display);
+        utils::info!("init_x11: display={:p} root={}", display, root);
+
+        Some(X11Context { _libx11: libx11, display, root })
     }
 }
 
@@ -282,42 +331,48 @@ fn prep_ctx(ctx: &mut egui::Context, accent_color: egui::Color32) {
 
 fn gui_style(style: &mut Style, accent_color: egui::Color32) {
     style.interaction.selectable_labels = false;
-    for font in style.text_styles.iter_mut() {
-        font.1.size = 16.0;
-    }
-    //style.visuals.override_text_color = Some(Color32::WHITE);
 
-    style.visuals.window_fill = Colors::BASE;
-    style.visuals.panel_fill = Colors::BASE;
-    style.visuals.extreme_bg_color = Colors::BACKDROP;
+    let radius = CornerRadius::same(4);
+    let widget_bg = Color32::from_rgba_premultiplied(30, 30, 35, 77);
+    let widget_border = Stroke::new(1.0, Color32::from_rgba_premultiplied(255, 255, 255, 13));
+    let accent_stroke = Stroke::new(1.0, accent_color);
 
-    let bg_stroke = Stroke::new(1.0, Colors::SUBTEXT);
-    let fg_stroke = Stroke::new(1.0, Colors::TEXT);
-    let dark_stroke = Stroke::new(1.0, Colors::BASE);
+    style.visuals.window_fill = Colors::WINDOW_BG;
+    style.visuals.panel_fill = Colors::WINDOW_BG;
+    style.visuals.extreme_bg_color = Color32::from_rgba_premultiplied(15, 15, 18, 166);
 
-    style.visuals.selection.bg_fill = accent_color;
-    style.visuals.selection.stroke = dark_stroke;
+    style.visuals.selection.bg_fill = Colors::ACCENT;
+    style.visuals.selection.stroke = Stroke::new(1.0, Colors::ACCENT);
 
-    style.visuals.widgets.active.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.active.bg_stroke = bg_stroke;
-    style.visuals.widgets.active.fg_stroke = fg_stroke;
-    style.visuals.widgets.active.weak_bg_fill = Colors::HIGHLIGHT;
+    style.visuals.widgets.active.bg_fill = Colors::ACCENT;
+    style.visuals.widgets.active.bg_stroke = accent_stroke;
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    style.visuals.widgets.active.weak_bg_fill = Colors::ACCENT;
+    style.visuals.widgets.active.corner_radius = radius;
 
-    style.visuals.widgets.hovered.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.hovered.bg_stroke = bg_stroke;
-    style.visuals.widgets.hovered.fg_stroke = fg_stroke;
-    style.visuals.widgets.hovered.weak_bg_fill = Colors::HIGHLIGHT;
+    style.visuals.widgets.hovered.bg_fill = Colors::CARD_HOVER;
+    style.visuals.widgets.hovered.bg_stroke = widget_border;
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Colors::TEXT);
+    style.visuals.widgets.hovered.weak_bg_fill = Colors::CARD_HOVER;
+    style.visuals.widgets.hovered.corner_radius = radius;
 
-    style.visuals.widgets.inactive.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.inactive.fg_stroke = fg_stroke;
-    style.visuals.widgets.inactive.weak_bg_fill = Colors::HIGHLIGHT;
+    style.visuals.widgets.inactive.bg_fill = widget_bg;
+    style.visuals.widgets.inactive.bg_stroke = widget_border;
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Colors::TEXT_DISABLED);
+    style.visuals.widgets.inactive.weak_bg_fill = widget_bg;
+    style.visuals.widgets.inactive.corner_radius = radius;
 
-    style.visuals.widgets.noninteractive.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.noninteractive.fg_stroke = fg_stroke;
-    style.visuals.widgets.noninteractive.weak_bg_fill = Colors::HIGHLIGHT;
+    style.visuals.widgets.noninteractive.bg_fill = Color32::TRANSPARENT;
+    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Colors::TEXT_DISABLED);
+    style.visuals.widgets.noninteractive.weak_bg_fill = Color32::TRANSPARENT;
 
-    style.visuals.widgets.open.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.open.bg_stroke = bg_stroke;
-    style.visuals.widgets.open.fg_stroke = fg_stroke;
-    style.visuals.widgets.open.weak_bg_fill = Colors::HIGHLIGHT;
+    style.visuals.widgets.open.bg_fill = Colors::CARD_HOVER;
+    style.visuals.widgets.open.bg_stroke = widget_border;
+    style.visuals.widgets.open.fg_stroke = Stroke::new(1.0, Colors::TEXT_DISABLED);
+    style.visuals.widgets.open.weak_bg_fill = Colors::CARD_HOVER;
+    style.visuals.widgets.open.corner_radius = radius;
+
+    style.spacing.item_spacing = Vec2::new(8.0, 6.0);
+    style.spacing.button_padding = Vec2::new(8.0, 4.0);
+    style.visuals.clip_rect_margin = 0.0;
 }

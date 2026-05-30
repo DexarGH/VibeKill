@@ -9,19 +9,26 @@ PROJECT ANALYSIS: deadlocked
    Features:    Aimbot, ESP (wallhack), Triggerbot, Recoil Control (RCS),
                 No-flash, FOV changer, Smoke disable, Grenade lineups,
                 Glow (wallhack glow through walls)
-  Author:      avitran0
-  Repository:  https://github.com/avitran0/deadlocked
+  Author:      avitran0 → DexarGH (fork: VibeKill)
+  Repository:  https://github.com/DexarGH/VibeKill
   License:     GPL-3.0
   Platform:    Linux only (enforced at compile time)
   Language:    Rust (edition 2024)
   Version:     1.0.0
 
   Architecture: Two-threaded (GUI thread + Game thread) communicating
-                via a channel. Shared state via Arc<Mutex<Data>>.
+                 via a channel. Shared state via Arc<Mutex<Data>>.
 
-  Thread 1 (GUI): winit event loop, egui UI, OpenGL overlay rendering
+  Thread 1 (GUI): winit event loop, egui overlay, menu on top of ESP
   Thread 2 (Game): GameManager loop at ~100Hz, memory read/write via
                    process_vm_readv/writev, feature execution
+
+  Changes from original deadlocked:
+    - Separate GUI window removed; UI rendered as overlay on top of ESP
+    - INSERT toggles menu (detected from CS2 input + winit fallback)
+    - Close button removed; Selfdestruct kills process
+    - LMB drag on empty space moves menu (manual input detection)
+    - RMB resize removed (was unreliable with egui's interact system)
 
 2. DIRECTORY STRUCTURE
 ----------------------------------------
@@ -52,9 +59,9 @@ PROJECT ANALYSIS: deadlocked
   │   ├── config.rs           # Config types, serialization, paths
   │   ├── constants.rs        # CS2 constants (lib names, offsets)
   │   ├── data.rs             # Shared Data structs (Data, PlayerData, BombData)
-  │   ├── game.rs             # GameManager: main game loop
+   │   ├── game.rs             # GameManager loop + INSERT detection
   │   ├── math.rs             # Math utilities (angles, W2S, smoothing)
-  │   ├── message.rs          # Channel messages (GameStatus, Config/Status)
+   │   ├── message.rs          # Channel (GameStatus, Config/Status, ToggleMenu)
   │   ├── cs2/
   │   │   ├── mod.rs          # CS2 struct: core game interaction
   │   │   ├── bones.rs        # Skeleton bone definitions
@@ -100,7 +107,7 @@ PROJECT ANALYSIS: deadlocked
   │       ├── trail.rs        # Grenade trail tracking
   │       ├── window_context.rs # OpenGL window setup
   │       ├── gui/
-  │       │   ├── mod.rs      # GUI tab system
+   │   │   ├── mod.rs      # Overlay menu (Area/Frame, LMB drag, Selfdestruct)
   │       │   ├── aimbot.rs   # Aimbot settings tab
   │       │   ├── about.rs    # About dialog
   │       │   ├── application.rs # App settings tab
@@ -182,7 +189,7 @@ PROJECT ANALYSIS: deadlocked
 
 6. SOURCE CODE STATISTICS
 ----------------------------------------
-  Total:   58 source files, ~9,440 lines of Rust
+  Total:   59 source files, ~9,500 lines of Rust
   Tests:   None (no #[cfg(test)] or tests/ directory)
 
 7. ARCHITECTURE DETAILS
@@ -239,21 +246,14 @@ PROJECT ANALYSIS: deadlocked
 ----------------------------------------
   Branch:      rust
   Remote:      origin/rust
-  Latest:      fd27642 - "fix bg slowdown"
-  Total:       ~20 commits shown
+  Total:       20× upstream + local overlay commits
   Tags:        deadlocked (1 tag)
 
-  Recent commits:
-    fd27642 fix bg slowdown
-    048ba8d maybe fix spectator list
-    03fda12 Merge pull request #304 from melodeu/rcs-human
-    32860ba refactor aimbot return and use Vec2 for history
-    48a1a71 humanized rcs
-    3b8d3d9 Merge pull request #300 from id3v1669/rust
-    ba77272 chore: bump flake & nix & nix-instructions
-    8028262 oops
-    7b28bdc add gap, adjust defaults
-    bd3cc26 sniper crosshair config
+  Local changes (VibeKill fork):
+    - Separate GUI window replaced with overlay menu
+    - INSERT toggle (CS2 input + winit fallback)
+    - LMB drag to move, RMB resize removed
+    - Selfdestruct button kills process
 
 11. CI/CD
 ----------------------------------------
@@ -272,13 +272,68 @@ PROJECT ANALYSIS: deadlocked
 ----------------------------------------
   - read-only cargo feature disables all memory writes
   - Crash handler sends stacktraces to author (opt-out configurable)
-  - Uses uinput (virtual mouse device named "TI-84 Plus Silver Calculator")
-  -    - Unsafe features (no-flash, FOV, smoke, glow) flagged with VAC risk warnings
-   - Glow writes to inline CGlowProperty at C_BaseModelEntity + 0x0d58
-     (m_fGlowColor=0x08, m_bGlowing=0x51, m_nGlowRange=0x38,
-      m_iGlowType=0x30, m_glowColorOverride=0x40 within CGlowProperty)
+    - Uses uinput (virtual mouse device named "TI-84 Plus Silver Calculator")
+    - Unsafe features (no-flash, FOV, smoke, glow) flagged with VAC risk warnings
+    - Glow writes to inline CGlowProperty at C_BaseModelEntity + 0x0d58
+      (m_fGlowColor=0x08, m_bGlowing=0x51, m_nGlowRange=0x38,
+       m_iGlowType=0x30, m_glowColorOverride=0x40 within CGlowProperty)
 
-14. SUPPORTED DESKTOP ENVIRONMENTS
+14. BUG FIXES (Session 2026-05-29)
+----------------------------------------
+  Bug 1: Menu moves when adjusting sliders
+    Fix: Drag restricted to title_bar_rect only (gui/mod.rs)
+
+  Bug 2: Grenade predict inaccurate
+    Current state: Uses eye_position() with proper ground Z (feet_z).
+                   Ground bounce added (was just stopping at feet_z).
+                   Still reported as "lower than real" — may need
+                   different throw origin or velocity tweaks.
+
+  Bug 3: Cursor/camera grab when menu open
+    Current state: Persistent X11 display connection + XGrabPointer on
+                   root to steal grab from CS2, then XUngrabPointer.
+                   Also calls winit set_cursor_grab(None).
+                   CRASH FIXED (removed broken XI2 code path).
+                   Cursor still doesn't work properly (grab not released).
+
+  Crash on Insert: Fixed
+    - Replaced all .unwrap() with safe handling in ungrab_input()
+    - Removed XI2 code path (segfault from uninitialized extension)
+    - Changed set_cursor_hittest().unwrap() to let _ = in render()
+
+  Backup of working version: /home/typoi/deadlocked.bak.working
+
+15. CHANGES (Session 2026-05-30)
+----------------------------------------
+  Bone Selector (new):
+    - Visual T-pose skeleton with clickable bone nodes
+    - Nodes toggle bones on/off, hover shows bone name
+    - All/None quick-select buttons below canvas
+    - Draggable popup window with close button
+    - Replaces the broken horizontal_wrapped bone list in aimbot settings
+    - File: src/ui/gui/bone_selector.rs
+
+  Misc Tab:
+    - Added Tab::Misc variant
+    - Moved Grenade Trails, FOV Circle, Glow, No Flash, FOV Changer,
+      No Smoke from HUD/UnSafe to Misc
+    - Removed empty Tab::UnSafe
+
+  Config Loading:
+    - Added "Load Config" section in Settings popup
+    - Lists available configs from available_configs()
+    - Click to load: parse_config() + send_config()
+
+  Close Button Fix:
+    - Replaced ui.interact() with ui.new_child() + allocate_exact_size(Sense::click())
+      in all popups (bone_selector, detached_popup, settings_popup)
+    - Hitbox increased from 16×16 to 24×24
+    - Fixes misaligned visual/hitbox and click consumption
+
+  Background Transparency:
+    - WINDOW_BG alpha: 166 → 210 (less transparent)
+
+16. SUPPORTED DESKTOP ENVIRONMENTS
 ----------------------------------------
   Best:  GNOME (Mutter), KDE (KWin)
   Good:  SwayWM, Weston
